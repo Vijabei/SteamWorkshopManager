@@ -357,14 +357,14 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\vijab\\Desktop\\steamworkshopmanager_\\WorkshopManager.csproj",
+      "projectUniqueName": "D:\\Entwicklung\\Desktopanwendungen\\softknight_de-SteamWorkshopCollectionManager\\SteamWorkshopManager\\WorkshopManager.csproj",
       "projectName": "WorkshopManager",
-      "projectPath": "C:\\Users\\vijab\\Desktop\\steamworkshopmanager_\\WorkshopManager.csproj",
+      "projectPath": "D:\\Entwicklung\\Desktopanwendungen\\softknight_de-SteamWorkshopCollectionManager\\SteamWorkshopManager\\WorkshopManager.csproj",
       "packagesPath": "C:\\Users\\vijab\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\vijab\\Desktop\\steamworkshopmanager_\\obj\\",
+      "outputPath": "D:\\Entwicklung\\Desktopanwendungen\\softknight_de-SteamWorkshopCollectionManager\\SteamWorkshopManager\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "C:\\Users\\vijab\\Desktop\\steamworkshopmanager_\\NuGet.Config",
+        "D:\\Entwicklung\\Desktopanwendungen\\softknight_de-SteamWorkshopCollectionManager\\SteamWorkshopManager\\NuGet.Config",
         "C:\\Users\\vijab\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
