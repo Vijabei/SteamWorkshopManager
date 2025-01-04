@@ -22,6 +22,7 @@ namespace WorkshopManager
         private readonly string targetDir;
         private readonly string scriptFile;
         private readonly bool cleanup;
+        private string currentGameId;  // Neue Variable für die Game ID
 
         public InstallationService(Logger logger, string steamCmdPath, string targetDir, string scriptFile, bool cleanup)
         {
@@ -66,6 +67,7 @@ namespace WorkshopManager
                 foreach (var gameDir in Directory.GetDirectories(workshopBase))
                 {
                     string gameId = Path.GetFileName(gameDir);
+                    currentGameId = gameId;  // Speichern der aktuellen Game ID
                     foreach (var modDir in Directory.GetDirectories(gameDir))
                     {
                         await ProcessModAsync(modDir, gameId, cancellationToken);
@@ -192,16 +194,43 @@ namespace WorkshopManager
             {
                 try
                 {
-                    await Task.Run(() =>
+                    if (string.IsNullOrEmpty(currentGameId))
                     {
-                        Directory.Delete(workshopBase, true);
-                    }, cancellationToken);
+                        throw new Exception("No game ID available for cleanup");
+                    }
+
+                    string gameDir = Path.Combine(workshopBase, currentGameId);
                     
-                    logger.Info("Workshop directory cleaned up successfully");
+                    if (Directory.Exists(gameDir))
+                    {
+                        await Task.Run(() =>
+                        {
+                            // Delete contents of specific game directory but keep the directory itself
+                            foreach (var item in Directory.GetFileSystemEntries(gameDir))
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                                
+                                if (Directory.Exists(item))
+                                {
+                                    Directory.Delete(item, true);
+                                }
+                                else
+                                {
+                                    File.Delete(item);
+                                }
+                            }
+                        }, cancellationToken);
+                        
+                        logger.Info($"Workshop content for game {currentGameId} cleaned up successfully");
+                    }
+                    else
+                    {
+                        logger.Warning($"Game directory {currentGameId} not found for cleanup");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    logger.Error($"Failed to cleanup workshop directory: {ex.Message}");
+                    logger.Error($"Failed to cleanup workshop content: {ex.Message}");
                     throw;
                 }
             }

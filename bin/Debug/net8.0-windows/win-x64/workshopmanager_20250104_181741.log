@@ -1,0 +1,46 @@
+[2025-01-04 18:19:31.038] [INFO] Starting SteamCMD...
+[2025-01-04 18:19:33.719] [INFO] SteamCMD: Steam Console Client (c) Valve Corporation - version 1733269577
+[2025-01-04 18:19:33.721] [INFO] SteamCMD: -- type 'quit' to exit --
+[2025-01-04 18:19:33.723] [INFO] SteamCMD: Loading Steam API...OK
+[2025-01-04 18:19:36.789] [INFO] SteamCMD: Connecting anonymously to Steam Public...OK
+[2025-01-04 18:19:36.791] [INFO] SteamCMD: Waiting for client config...OK
+[2025-01-04 18:19:36.815] [INFO] SteamCMD: Waiting for user info...OK
+[2025-01-04 18:19:38.824] [INFO] SteamCMD: Downloading item 2699828474 ...
+[2025-01-04 18:19:40.342] [INFO] SteamCMD: Success. Downloaded item 2699828474 to "A:\SteamCMD\steamapps\workshop\content\108600\2699828474" (572455 bytes) Downloading item 3381815115 ...
+[2025-01-04 18:19:40.345] [INFO] SteamCMD: Success. Downloaded item 3381815115 to "A:\SteamCMD\steamapps\workshop\content\108600\3381815115" (1676229 bytes) @ShutdownOnFailedCommand 0
+[2025-01-04 18:19:40.347] [INFO] SteamCMD: "@ShutdownOnFailedCommand" = "0"
+[2025-01-04 18:19:40.349] [INFO] SteamCMD: @NoPromptForPassword 1
+[2025-01-04 18:19:40.351] [INFO] SteamCMD: "@NoPromptForPassword" = "1"
+[2025-01-04 18:19:40.353] [INFO] SteamCMD: force_install_dir ./
+[2025-01-04 18:19:40.355] [INFO] SteamCMD: Please set the game install path to something other than the Steam install folder
+[2025-01-04 18:19:40.357] [INFO] SteamCMD: bVerifyAllDownloads 1
+[2025-01-04 18:19:40.360] [INFO] SteamCMD: "bVerifyAllDownloads" = "1"
+[2025-01-04 18:19:40.364] [INFO] SteamCMD: workshop_download_item 108600 2699828474
+[2025-01-04 18:19:40.366] [INFO] SteamCMD: workshop_download_item 108600 3381815115
+[2025-01-04 18:19:40.369] [INFO] Processing mod 2699828474...
+[2025-01-04 18:19:40.390] [INFO] Mod 2699828474 installed successfully
+[2025-01-04 18:19:40.393] [INFO] Processing mod 3381815115...
+[2025-01-04 18:19:40.420] [INFO] Mod 3381815115 installed successfully
+[2025-01-04 18:19:53.003] [INFO] Starting SteamCMD...
+[2025-01-04 18:19:54.021] [INFO] SteamCMD: Steam Console Client (c) Valve Corporation - version 1733269577
+[2025-01-04 18:19:54.024] [INFO] SteamCMD: -- type 'quit' to exit --
+[2025-01-04 18:19:54.027] [INFO] SteamCMD: Loading Steam API...OK
+[2025-01-04 18:19:56.449] [INFO] SteamCMD: Connecting anonymously to Steam Public...OK
+[2025-01-04 18:19:56.452] [INFO] SteamCMD: Waiting for client config...OK
+[2025-01-04 18:19:56.475] [INFO] SteamCMD: Waiting for user info...OK
+[2025-01-04 18:19:57.296] [INFO] SteamCMD: Downloading item 2699828474 ...
+[2025-01-04 18:19:58.129] [INFO] SteamCMD: Success. Downloaded item 2699828474 to "A:\SteamCMD\steamapps\workshop\content\108600\2699828474" (572455 bytes) Downloading item 3381815115 ...
+[2025-01-04 18:19:58.133] [INFO] SteamCMD: Success. Downloaded item 3381815115 to "A:\SteamCMD\steamapps\workshop\content\108600\3381815115" (1676229 bytes) @ShutdownOnFailedCommand 0
+[2025-01-04 18:19:58.136] [INFO] SteamCMD: "@ShutdownOnFailedCommand" = "0"
+[2025-01-04 18:19:58.138] [INFO] SteamCMD: @NoPromptForPassword 1
+[2025-01-04 18:19:58.140] [INFO] SteamCMD: "@NoPromptForPassword" = "1"
+[2025-01-04 18:19:58.143] [INFO] SteamCMD: force_install_dir ./
+[2025-01-04 18:19:58.146] [INFO] SteamCMD: Please set the game install path to something other than the Steam install folder
+[2025-01-04 18:19:58.150] [INFO] SteamCMD: bVerifyAllDownloads 1
+[2025-01-04 18:19:58.152] [INFO] SteamCMD: "bVerifyAllDownloads" = "1"
+[2025-01-04 18:19:58.153] [INFO] Processing mod 2699828474...
+[2025-01-04 18:19:58.164] [INFO] Mod 2699828474 installed successfully
+[2025-01-04 18:19:58.167] [INFO] Processing mod 3381815115...
+[2025-01-04 18:19:58.188] [INFO] Mod 3381815115 installed successfully
+[2025-01-04 18:19:58.196] [INFO] Cleaning up workshop files...
+[2025-01-04 18:19:58.214] [INFO] Workshop content for game 108600 cleaned up successfully

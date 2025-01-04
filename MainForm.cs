@@ -3,224 +3,172 @@ using System.Windows.Forms;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
-using System.Diagnostics;
-using System.Linq;
-using System.ComponentModel;
-using System.Threading;  // Für CancellationToken
+using System.Threading;
 
 namespace WorkshopManager
 {
     public partial class MainForm : Form
     {
-        // Component declarations with XML documentation
-        /// <summary>
-        /// TextBox for the target directory path
-        /// </summary>
         private readonly TextBox targetDirBox;
-
-        /// <summary>
-        /// TextBox for the script file path
-        /// </summary>
         private readonly TextBox scriptFileBox;
-
-        /// <summary>
-        /// Button to browse for target directory
-        /// </summary>
+        private readonly TextBox steamCmdPathBox;
         private readonly Button browseTargetButton;
-
-        /// <summary>
-        /// Button to browse for script file
-        /// </summary>
         private readonly Button browseScriptButton;
-
-        /// <summary>
-        /// Button to start the installation process
-        /// </summary>
+        private readonly Button browseSteamCmdButton;
         private readonly Button installButton;
-
-        /// <summary>
-        /// Progress bar to show installation progress
-        /// </summary>
         private readonly ProgressBar progressBar;
-
-        /// <summary>
-        /// TextBox for logging output
-        /// </summary>
         private readonly TextBox logBox;
-
-        /// <summary>
-        /// Checkbox for cleanup option
-        /// </summary>
         private readonly CheckBox cleanupCheckBox;
-
-        /// <summary>
-        /// Label for status messages
-        /// </summary>
         private readonly Label statusLabel;
-
-        /// <summary>
-        /// Path to SteamCMD executable
-        /// </summary>
-        private readonly string steamCmdPath;
-
-        /// <summary>
-        /// Logger instance for application logging
-        /// </summary>
         private readonly Logger logger;
-
-        /// <summary>
-        /// Cancellation token source for installation process
-        /// </summary>
         private CancellationTokenSource cancellationTokenSource;
-
-        /// <summary>
-        /// Button to cancel the installation process
-        /// </summary>
         private Button cancelButton;
+        private readonly Settings settings;
 
         public MainForm()
         {
             try
             {
-                // Initialize steamCmdPath first as it's required for validation
-                steamCmdPath = ConfigHandler.GetSteamCmdPath();
+                // Load settings
+                settings = Settings.Load();
 
                 // Initialize cancellation token source
                 cancellationTokenSource = new CancellationTokenSource();
 
-                // Initialize text boxes
-            targetDirBox = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Margin = new Padding(5),
-                Name = "targetDirBox"
-            };
+                // Initialize controls
+                targetDirBox = new TextBox
+                {
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5),
+                    Text = settings.LastTargetDirectory
+                };
 
-            scriptFileBox = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Margin = new Padding(5),
-                Name = "scriptFileBox"
-            };
+                scriptFileBox = new TextBox
+                {
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5),
+                    Text = settings.LastScriptFile
+                };
 
-            // Initialize buttons
-            browseTargetButton = new Button
-            {
-                Text = "Browse",
-                Dock = DockStyle.Fill,
-                Margin = new Padding(5),
-                Name = "browseTargetButton"
-            };
-            browseTargetButton.Click += BrowseTargetDir;
+                steamCmdPathBox = new TextBox
+                {
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5),
+                    Text = settings.SteamCmdPath
+                };
 
-            browseScriptButton = new Button
-            {
-                Text = "Browse",
-                Dock = DockStyle.Fill,
-                Margin = new Padding(5),
-                Name = "browseScriptButton"
-            };
-            browseScriptButton.Click += BrowseScriptFile;
+                // Initialize buttons
+                browseTargetButton = new Button
+                {
+                    Text = "Browse",
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5)
+                };
+                browseTargetButton.Click += BrowseTargetDir;
 
-            installButton = new Button
-            {
-                Text = "Install Mods",
-                Dock = DockStyle.Fill,
-                Margin = new Padding(5),
-                Height = 40,
-                Name = "installButton"
-            };
-            installButton.Click += InstallMods;
+                browseScriptButton = new Button
+                {
+                    Text = "Browse",
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5)
+                };
+                browseScriptButton.Click += BrowseScriptFile;
 
-            // Initialize cancel button
-            cancelButton = new Button
-            {
-                Text = "Cancel",
-                Dock = DockStyle.Fill,
-                Margin = new Padding(5),
-                Enabled = false,
-                Name = "cancelButton"
-            };
-            cancelButton.Click += CancelInstallation;
+                browseSteamCmdButton = new Button
+                {
+                    Text = "Browse",
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5)
+                };
+                browseSteamCmdButton.Click += BrowseSteamCmd;
 
-            // Initialize progress bar
-            progressBar = new ProgressBar
-            {
-                Dock = DockStyle.Fill,
-                Margin = new Padding(5),
-                Style = ProgressBarStyle.Continuous,
-                Value = 0,
-                Name = "progressBar"
-            };
+                installButton = new Button
+                {
+                    Text = "Install Mods",
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5),
+                    Height = 40
+                };
+                installButton.Click += InstallMods;
 
-            // Initialize log box
-            logBox = new TextBox
-            {
-                Multiline = true,
-                ScrollBars = ScrollBars.Vertical,
-                Dock = DockStyle.Fill,
-                ReadOnly = true,
-                BackColor = Color.White,
-                Margin = new Padding(5),
-                Name = "logBox"
-            };
+                // Initialize cancel button
+                cancelButton = new Button
+                {
+                    Text = "Cancel",
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5),
+                    Enabled = false
+                };
+                cancelButton.Click += CancelInstallation;
 
-            // Initialize checkbox
-            cleanupCheckBox = new CheckBox
-            {
-                Text = "Clean up workshop files after installation",
-                Checked = false,
-                Dock = DockStyle.Fill,
-                Margin = new Padding(5),
-                Name = "cleanupCheckBox"
-            };
+                // Initialize progress bar
+                progressBar = new ProgressBar
+                {
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5),
+                    Style = ProgressBarStyle.Continuous,
+                    Value = 0
+                };
 
-            // Initialize status label
-            statusLabel = new Label
-            {
-                Text = "Ready",
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Name = "statusLabel"
-            };
+                // Initialize log box
+                logBox = new TextBox
+                {
+                    Multiline = true,
+                    ScrollBars = ScrollBars.Vertical,
+                    Dock = DockStyle.Fill,
+                    ReadOnly = true,
+                    BackColor = Color.White,
+                    Margin = new Padding(5)
+                };
 
-        // Initialize logger after UI components
-        logger = new Logger(logBox);
+                // Initialize checkbox
+                cleanupCheckBox = new CheckBox
+                {
+                    Text = "Clean up workshop files after installation",
+                    Checked = false,
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5)
+                };
 
-        // Initialize base form
-        InitializeComponent();
+                // Initialize status label
+                statusLabel = new Label
+                {
+                    Text = "Ready",
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
 
-        // Setup the UI layout and properties
-        SetupUI();
+                // Initialize logger after UI components
+                logger = new Logger(logBox);
 
-        // Validate SteamCMD installation
-        CheckSteamCmdExists();
-    }
-    catch (Exception ex)
-    {
-        MessageBox.Show(
-            $"Error initializing the application: {ex.Message}",
-            "Initialization Error",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Error
-        );
-        throw;
-    }
-}
+                // Initialize base form
+                InitializeComponent();
 
-        private void CheckSteamCmdExists()
-        {
-            if (!ConfigHandler.ValidateSteamCmdPath(steamCmdPath))
+                // Setup the UI layout
+                SetupUI();
+
+                // Form closing event
+                FormClosing += MainForm_FormClosing;
+            }
+            catch (Exception ex)
             {
                 MessageBox.Show(
-                    "steamcmd.exe not found at configured path: " + steamCmdPath + 
-                    "\nPlease check your configuration file.", 
-                    "Error", 
-                    MessageBoxButtons.OK, 
+                    $"Error initializing the application: {ex.Message}",
+                    "Initialization Error",
+                    MessageBoxButtons.OK,
                     MessageBoxIcon.Error
                 );
-                Environment.Exit(1);
+                throw;
             }
+        }
+
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            // Save settings
+            settings.LastTargetDirectory = targetDirBox.Text;
+            settings.LastScriptFile = scriptFileBox.Text;
+            settings.SteamCmdPath = steamCmdPathBox.Text;
+            settings.Save();
         }
 
         private void SetupUI()
@@ -231,12 +179,12 @@ namespace WorkshopManager
             MinimumSize = new Size(600, 400);
             StartPosition = FormStartPosition.CenterScreen;
 
-            // Create and configure layout
+            // Create layout
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
-                RowCount = 6,
+                RowCount = 7,
                 Padding = new Padding(10)
             };
 
@@ -245,7 +193,14 @@ namespace WorkshopManager
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
 
-            // Create and add labels
+            // Create labels
+            var steamCmdLabel = new Label
+            {
+                Text = "SteamCMD Path:",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight
+            };
+
             var targetDirLabel = new Label
             {
                 Text = "Target Directory:",
@@ -261,24 +216,29 @@ namespace WorkshopManager
             };
 
             // Add controls to layout
-            layout.Controls.Add(targetDirLabel, 0, 0);
-            layout.Controls.Add(targetDirBox, 1, 0);
-            layout.Controls.Add(browseTargetButton, 2, 0);
+            layout.Controls.Add(steamCmdLabel, 0, 0);
+            layout.Controls.Add(steamCmdPathBox, 1, 0);
+            layout.Controls.Add(browseSteamCmdButton, 2, 0);
 
             layout.Controls.Add(scriptFileLabel, 0, 1);
             layout.Controls.Add(scriptFileBox, 1, 1);
             layout.Controls.Add(browseScriptButton, 2, 1);
 
-            layout.Controls.Add(cleanupCheckBox, 1, 2);
-            layout.Controls.Add(installButton, 1, 3);
-            layout.Controls.Add(cancelButton, 2, 3);
-            layout.Controls.Add(progressBar, 1, 4);
-            layout.Controls.Add(statusLabel, 0, 4);
+            layout.Controls.Add(targetDirLabel, 0, 2);
+            layout.Controls.Add(targetDirBox, 1, 2);
+            layout.Controls.Add(browseTargetButton, 2, 2);
+
+            layout.Controls.Add(cleanupCheckBox, 1, 3);
+            layout.Controls.Add(installButton, 1, 4);
+            layout.Controls.Add(cancelButton, 2, 4);
+            layout.Controls.Add(progressBar, 1, 5);
+            layout.Controls.Add(statusLabel, 0, 5);
 
             layout.SetColumnSpan(logBox, 3);
-            layout.Controls.Add(logBox, 0, 5);
+            layout.Controls.Add(logBox, 0, 6);
 
             // Configure row styles
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
@@ -287,6 +247,20 @@ namespace WorkshopManager
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             Controls.Add(layout);
+        }
+
+        private void BrowseSteamCmd(object sender, EventArgs e)
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Filter = "SteamCMD|steamcmd.exe|All files (*.*)|*.*",
+                Title = "Select SteamCMD executable"
+            };
+
+            if (dialog.ShowDialog() == DialogResult.OK)
+            {
+                steamCmdPathBox.Text = dialog.FileName;
+            }
         }
 
         private void BrowseTargetDir(object sender, EventArgs e)
@@ -316,6 +290,55 @@ namespace WorkshopManager
             }
         }
 
+        private bool ValidateInputs()
+        {
+            if (string.IsNullOrWhiteSpace(steamCmdPathBox.Text) || !Settings.ValidateSteamCmdPath(steamCmdPathBox.Text))
+            {
+                MessageBox.Show(
+                    "Please select a valid steamcmd.exe path.",
+                    "Validation Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(targetDirBox.Text))
+            {
+                MessageBox.Show(
+                    "Please select a target directory.",
+                    "Validation Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(scriptFileBox.Text))
+            {
+                MessageBox.Show(
+                    "Please select a script file.",
+                    "Validation Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                return false;
+            }
+
+            if (!File.Exists(scriptFileBox.Text))
+            {
+                MessageBox.Show(
+                    "The selected script file does not exist.",
+                    "Validation Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+                return false;
+            }
+
+            return true;
+        }
+
         private async void InstallMods(object sender, EventArgs e)
         {
             if (!ValidateInputs()) return;
@@ -323,8 +346,7 @@ namespace WorkshopManager
             SetControlsEnabled(false);
             cancelButton.Enabled = true;
             progressBar.Style = ProgressBarStyle.Continuous;
-            
-            // Create new cancellation token for this installation
+
             cancellationTokenSource = new CancellationTokenSource();
 
             try
@@ -332,28 +354,40 @@ namespace WorkshopManager
                 var progress = new Progress<InstallationProgress>(UpdateProgress);
                 var installationService = new InstallationService(
                     logger,
-                    steamCmdPath,
+                    steamCmdPathBox.Text,
                     targetDirBox.Text,
                     scriptFileBox.Text,
                     cleanupCheckBox.Checked
                 );
 
                 await installationService.InstallModsAsync(progress, cancellationTokenSource.Token);
-                
-                MessageBox.Show("Installation completed successfully!", "Success", 
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                MessageBox.Show(
+                    "Installation completed successfully!",
+                    "Success",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
             }
             catch (OperationCanceledException)
             {
                 logger.Warning("Installation was cancelled");
-                MessageBox.Show("Installation was cancelled by user.", "Cancelled",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(
+                    "Installation was cancelled by user.",
+                    "Cancelled",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
             }
             catch (Exception ex)
             {
                 logger.Error($"Installation failed: {ex.Message}");
-                MessageBox.Show($"Installation failed: {ex.Message}", 
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    $"Installation failed: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
             finally
             {
@@ -362,32 +396,6 @@ namespace WorkshopManager
                 progressBar.Value = 0;
                 UpdateStatus("Ready");
             }
-        }
-
-        private bool ValidateInputs()
-        {
-            if (string.IsNullOrWhiteSpace(targetDirBox.Text))
-            {
-                MessageBox.Show("Please select a target directory.", 
-                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(scriptFileBox.Text))
-            {
-                MessageBox.Show("Please select a script file.", 
-                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-
-            if (!File.Exists(scriptFileBox.Text))
-            {
-                MessageBox.Show("The selected script file does not exist.", 
-                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
-            }
-
-            return true;
         }
 
         private void CancelInstallation(object sender, EventArgs e)
@@ -423,8 +431,10 @@ namespace WorkshopManager
                 return;
             }
 
+            steamCmdPathBox.Enabled = enabled;
             targetDirBox.Enabled = enabled;
             scriptFileBox.Enabled = enabled;
+            browseSteamCmdButton.Enabled = enabled;
             browseTargetButton.Enabled = enabled;
             browseScriptButton.Enabled = enabled;
             installButton.Enabled = enabled;
@@ -441,9 +451,6 @@ namespace WorkshopManager
             statusLabel.Text = message;
         }
 
-        /// <summary>
-        /// Clean up any resources being used.
-        /// </summary>
         protected override void Dispose(bool disposing)
         {
             if (disposing)
@@ -451,8 +458,10 @@ namespace WorkshopManager
                 cancellationTokenSource?.Dispose();
                 targetDirBox?.Dispose();
                 scriptFileBox?.Dispose();
+                steamCmdPathBox?.Dispose();
                 browseTargetButton?.Dispose();
                 browseScriptButton?.Dispose();
+                browseSteamCmdButton?.Dispose();
                 installButton?.Dispose();
                 progressBar?.Dispose();
                 logBox?.Dispose();

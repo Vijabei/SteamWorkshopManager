@@ -1,5 +1,4 @@
 c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.exe
-c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.dll.config
 c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.deps.json
 c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.runtimeconfig.json
 c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.dll

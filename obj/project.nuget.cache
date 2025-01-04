@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "KWSxwVK6eAs=",
+  "dgSpecHash": "ey4Leg5tLS8=",
   "success": true,
-  "projectFilePath": "C:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj",
+  "projectFilePath": "C:\\Users\\vijab\\Desktop\\steamworkshopmanager_\\WorkshopManager.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\vijab\\.nuget\\packages\\microsoft.net.illink.tasks\\8.0.11\\microsoft.net.illink.tasks.8.0.11.nupkg.sha512",
     "C:\\Users\\vijab\\.nuget\\packages\\newtonsoft.json\\13.0.1\\newtonsoft.json.13.0.1.nupkg.sha512",
