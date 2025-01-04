@@ -1,0 +1,52 @@
+name: .NET Core Desktop
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    runs-on: windows-latest
+
+    env:
+      Solution_Name: WorkshopManager.sln
+      Project_Path: WorkshopManager.csproj
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Restore dependencies
+      run: dotnet restore ${{ env.Project_Path }}
+
+    - name: Build
+      run: dotnet build ${{ env.Project_Path }} --configuration ${{ matrix.configuration }} --no-restore
+
+    # Optional: Tests hinzufügen wenn vorhanden
+    # - name: Test
+    #   run: dotnet test --no-restore --verbosity normal
+
+    - name: Publish
+      run: dotnet publish ${{ env.Project_Path }} --configuration ${{ matrix.configuration }} --no-build --output publish/${{ matrix.configuration }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: WorkshopManager-${{ matrix.configuration }}
+        path: publish/${{ matrix.configuration }}
