@@ -6,7 +6,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/bin/Debug/net8.0-windows/WorkshopManager.dll",
+            "program": "${workspaceFolder}/bin/Debug/net8.0-windows/win-x64/WorkshopManager.dll",
             "args": [],
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",

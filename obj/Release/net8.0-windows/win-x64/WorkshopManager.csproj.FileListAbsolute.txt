@@ -1,0 +1,17 @@
+c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.exe
+c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.dll.config
+c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.deps.json
+c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.runtimeconfig.json
+c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\WorkshopManager.dll
+c:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\Newtonsoft.Json.dll
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\WorkshopManager.csproj.AssemblyReference.cache
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\WorkshopManager.GeneratedMSBuildEditorConfig.editorconfig
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\WorkshopManager.AssemblyInfoInputs.cache
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\WorkshopManager.AssemblyInfo.cs
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\WorkshopManager.csproj.CoreCompileInputs.cache
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\WorkshopManager.sourcelink.json
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\Workshop.372E1798.Up2Date
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\WorkshopManager.dll
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\refint\WorkshopManager.dll
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\WorkshopManager.genruntimeconfig.cache
+c:\Users\vijab\Desktop\steamworkshopmanager\obj\Release\net8.0-windows\win-x64\ref\WorkshopManager.dll

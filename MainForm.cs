@@ -5,44 +5,208 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Linq;
+using System.ComponentModel;
+using System.Threading;  // Für CancellationToken
 
 namespace WorkshopManager
 {
     public partial class MainForm : Form
     {
-            private void InitializeComponent()
-    {
-        // Leere Implementierung ist ausreichend, da wir die UI programmatisch aufbauen
-    }
+        // Component declarations with XML documentation
+        /// <summary>
+        /// TextBox for the target directory path
+        /// </summary>
         private readonly TextBox targetDirBox;
+
+        /// <summary>
+        /// TextBox for the script file path
+        /// </summary>
         private readonly TextBox scriptFileBox;
+
+        /// <summary>
+        /// Button to browse for target directory
+        /// </summary>
         private readonly Button browseTargetButton;
+
+        /// <summary>
+        /// Button to browse for script file
+        /// </summary>
         private readonly Button browseScriptButton;
+
+        /// <summary>
+        /// Button to start the installation process
+        /// </summary>
         private readonly Button installButton;
+
+        /// <summary>
+        /// Progress bar to show installation progress
+        /// </summary>
         private readonly ProgressBar progressBar;
+
+        /// <summary>
+        /// TextBox for logging output
+        /// </summary>
         private readonly TextBox logBox;
+
+        /// <summary>
+        /// Checkbox for cleanup option
+        /// </summary>
         private readonly CheckBox cleanupCheckBox;
+
+        /// <summary>
+        /// Label for status messages
+        /// </summary>
         private readonly Label statusLabel;
+
+        /// <summary>
+        /// Path to SteamCMD executable
+        /// </summary>
         private readonly string steamCmdPath;
+
+        /// <summary>
+        /// Logger instance for application logging
+        /// </summary>
+        private readonly Logger logger;
+
+        /// <summary>
+        /// Cancellation token source for installation process
+        /// </summary>
+        private CancellationTokenSource cancellationTokenSource;
+
+        /// <summary>
+        /// Button to cancel the installation process
+        /// </summary>
+        private Button cancelButton;
 
         public MainForm()
         {
-            targetDirBox = new TextBox();
-            scriptFileBox = new TextBox();
-            browseTargetButton = new Button();
-            browseScriptButton = new Button();
-            installButton = new Button();
-            progressBar = new ProgressBar();
-            logBox = new TextBox();
-            cleanupCheckBox = new CheckBox();
-            statusLabel = new Label();
-            
-            steamCmdPath = ConfigHandler.GetSteamCmdPath();
-            
-            InitializeComponent();
-            SetupUI();
-            CheckSteamCmdExists();
-        }
+            try
+            {
+                // Initialize steamCmdPath first as it's required for validation
+                steamCmdPath = ConfigHandler.GetSteamCmdPath();
+
+                // Initialize cancellation token source
+                cancellationTokenSource = new CancellationTokenSource();
+
+                // Initialize text boxes
+            targetDirBox = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(5),
+                Name = "targetDirBox"
+            };
+
+            scriptFileBox = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(5),
+                Name = "scriptFileBox"
+            };
+
+            // Initialize buttons
+            browseTargetButton = new Button
+            {
+                Text = "Browse",
+                Dock = DockStyle.Fill,
+                Margin = new Padding(5),
+                Name = "browseTargetButton"
+            };
+            browseTargetButton.Click += BrowseTargetDir;
+
+            browseScriptButton = new Button
+            {
+                Text = "Browse",
+                Dock = DockStyle.Fill,
+                Margin = new Padding(5),
+                Name = "browseScriptButton"
+            };
+            browseScriptButton.Click += BrowseScriptFile;
+
+            installButton = new Button
+            {
+                Text = "Install Mods",
+                Dock = DockStyle.Fill,
+                Margin = new Padding(5),
+                Height = 40,
+                Name = "installButton"
+            };
+            installButton.Click += InstallMods;
+
+            // Initialize cancel button
+            cancelButton = new Button
+            {
+                Text = "Cancel",
+                Dock = DockStyle.Fill,
+                Margin = new Padding(5),
+                Enabled = false,
+                Name = "cancelButton"
+            };
+            cancelButton.Click += CancelInstallation;
+
+            // Initialize progress bar
+            progressBar = new ProgressBar
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(5),
+                Style = ProgressBarStyle.Continuous,
+                Value = 0,
+                Name = "progressBar"
+            };
+
+            // Initialize log box
+            logBox = new TextBox
+            {
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical,
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                BackColor = Color.White,
+                Margin = new Padding(5),
+                Name = "logBox"
+            };
+
+            // Initialize checkbox
+            cleanupCheckBox = new CheckBox
+            {
+                Text = "Clean up workshop files after installation",
+                Checked = false,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(5),
+                Name = "cleanupCheckBox"
+            };
+
+            // Initialize status label
+            statusLabel = new Label
+            {
+                Text = "Ready",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Name = "statusLabel"
+            };
+
+        // Initialize logger after UI components
+        logger = new Logger(logBox);
+
+        // Initialize base form
+        InitializeComponent();
+
+        // Setup the UI layout and properties
+        SetupUI();
+
+        // Validate SteamCMD installation
+        CheckSteamCmdExists();
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show(
+            $"Error initializing the application: {ex.Message}",
+            "Initialization Error",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error
+        );
+        throw;
+    }
+}
 
         private void CheckSteamCmdExists()
         {
@@ -61,11 +225,13 @@ namespace WorkshopManager
 
         private void SetupUI()
         {
+            // Configure form properties
             Text = "Workshop Mod Manager";
             Size = new Size(800, 600);
             MinimumSize = new Size(600, 400);
             StartPosition = FormStartPosition.CenterScreen;
 
+            // Create and configure layout
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -74,75 +240,38 @@ namespace WorkshopManager
                 Padding = new Padding(10)
             };
 
+            // Configure column styles
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15));
 
-            // Configure controls
-            targetDirBox.Dock = DockStyle.Fill;
-            targetDirBox.Margin = new Padding(5);
+            // Create and add labels
+            var targetDirLabel = new Label
+            {
+                Text = "Target Directory:",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight
+            };
 
-            scriptFileBox.Dock = DockStyle.Fill;
-            scriptFileBox.Margin = new Padding(5);
-
-            browseTargetButton.Text = "Browse";
-            browseTargetButton.Dock = DockStyle.Fill;
-            browseTargetButton.Margin = new Padding(5);
-            browseTargetButton.Click += BrowseTargetDir;
-
-            browseScriptButton.Text = "Browse";
-            browseScriptButton.Dock = DockStyle.Fill;
-            browseScriptButton.Margin = new Padding(5);
-            browseScriptButton.Click += BrowseScriptFile;
-
-            cleanupCheckBox.Text = "Clean up workshop files after installation";
-            cleanupCheckBox.Checked = false;
-            cleanupCheckBox.Dock = DockStyle.Fill;
-            cleanupCheckBox.Margin = new Padding(5);
-
-            installButton.Text = "Install Mods";
-            installButton.Dock = DockStyle.Fill;
-            installButton.Margin = new Padding(5);
-            installButton.Height = 40;
-            installButton.Click += InstallMods;
-
-            progressBar.Dock = DockStyle.Fill;
-            progressBar.Margin = new Padding(5);
-            progressBar.Style = ProgressBarStyle.Marquee;
-            progressBar.MarqueeAnimationSpeed = 0;
-
-            statusLabel.Text = "Ready";
-            statusLabel.Dock = DockStyle.Fill;
-            statusLabel.TextAlign = ContentAlignment.MiddleLeft;
-
-            logBox.Multiline = true;
-            logBox.ScrollBars = ScrollBars.Vertical;
-            logBox.Dock = DockStyle.Fill;
-            logBox.ReadOnly = true;
-            logBox.BackColor = Color.White;
-            logBox.Margin = new Padding(5);
+            var scriptFileLabel = new Label
+            {
+                Text = "Script File:",
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight
+            };
 
             // Add controls to layout
-            layout.Controls.Add(new Label 
-            { 
-                Text = "Target Directory:", 
-                Dock = DockStyle.Fill, 
-                TextAlign = ContentAlignment.MiddleRight 
-            }, 0, 0);
+            layout.Controls.Add(targetDirLabel, 0, 0);
             layout.Controls.Add(targetDirBox, 1, 0);
             layout.Controls.Add(browseTargetButton, 2, 0);
 
-            layout.Controls.Add(new Label 
-            { 
-                Text = "Script File:", 
-                Dock = DockStyle.Fill, 
-                TextAlign = ContentAlignment.MiddleRight 
-            }, 0, 1);
+            layout.Controls.Add(scriptFileLabel, 0, 1);
             layout.Controls.Add(scriptFileBox, 1, 1);
             layout.Controls.Add(browseScriptButton, 2, 1);
 
             layout.Controls.Add(cleanupCheckBox, 1, 2);
             layout.Controls.Add(installButton, 1, 3);
+            layout.Controls.Add(cancelButton, 2, 3);
             layout.Controls.Add(progressBar, 1, 4);
             layout.Controls.Add(statusLabel, 0, 4);
 
@@ -162,26 +291,28 @@ namespace WorkshopManager
 
         private void BrowseTargetDir(object sender, EventArgs e)
         {
-            using (var dialog = new FolderBrowserDialog())
+            using var dialog = new FolderBrowserDialog
             {
-                dialog.Description = "Select target directory for mods";
-                if (dialog.ShowDialog() == DialogResult.OK)
-                {
-                    targetDirBox.Text = dialog.SelectedPath;
-                }
+                Description = "Select target directory for mods"
+            };
+
+            if (dialog.ShowDialog() == DialogResult.OK)
+            {
+                targetDirBox.Text = dialog.SelectedPath;
             }
         }
 
         private void BrowseScriptFile(object sender, EventArgs e)
         {
-            using (var dialog = new OpenFileDialog())
+            using var dialog = new OpenFileDialog
             {
-                dialog.Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*";
-                dialog.Title = "Select SteamCMD script file";
-                if (dialog.ShowDialog() == DialogResult.OK)
-                {
-                    scriptFileBox.Text = dialog.FileName;
-                }
+                Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                Title = "Select SteamCMD script file"
+            };
+
+            if (dialog.ShowDialog() == DialogResult.OK)
+            {
+                scriptFileBox.Text = dialog.FileName;
             }
         }
 
@@ -190,157 +321,98 @@ namespace WorkshopManager
             if (!ValidateInputs()) return;
 
             SetControlsEnabled(false);
-            progressBar.MarqueeAnimationSpeed = 30;
+            cancelButton.Enabled = true;
+            progressBar.Style = ProgressBarStyle.Continuous;
+            
+            // Create new cancellation token for this installation
+            cancellationTokenSource = new CancellationTokenSource();
 
             try
             {
-                await Task.Run(RunInstallation);
+                var progress = new Progress<InstallationProgress>(UpdateProgress);
+                var installationService = new InstallationService(
+                    logger,
+                    steamCmdPath,
+                    targetDirBox.Text,
+                    scriptFileBox.Text,
+                    cleanupCheckBox.Checked
+                );
+
+                await installationService.InstallModsAsync(progress, cancellationTokenSource.Token);
+                
+                MessageBox.Show("Installation completed successfully!", "Success", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (OperationCanceledException)
+            {
+                logger.Warning("Installation was cancelled");
+                MessageBox.Show("Installation was cancelled by user.", "Cancelled",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                Log($"Error: {ex.Message}");
+                logger.Error($"Installation failed: {ex.Message}");
                 MessageBox.Show($"Installation failed: {ex.Message}", 
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
                 SetControlsEnabled(true);
-                progressBar.MarqueeAnimationSpeed = 0;
+                cancelButton.Enabled = false;
+                progressBar.Value = 0;
+                UpdateStatus("Ready");
             }
         }
 
         private bool ValidateInputs()
         {
-            if (string.IsNullOrWhiteSpace(targetDirBox.Text) || 
-                string.IsNullOrWhiteSpace(scriptFileBox.Text))
+            if (string.IsNullOrWhiteSpace(targetDirBox.Text))
             {
-                MessageBox.Show("Please select both target directory and script file.", 
+                MessageBox.Show("Please select a target directory.", 
                     "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
             }
+
+            if (string.IsNullOrWhiteSpace(scriptFileBox.Text))
+            {
+                MessageBox.Show("Please select a script file.", 
+                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            if (!File.Exists(scriptFileBox.Text))
+            {
+                MessageBox.Show("The selected script file does not exist.", 
+                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
             return true;
         }
 
-        private void RunInstallation()
+        private void CancelInstallation(object sender, EventArgs e)
         {
-            Log("Starting mod installation...");
-            UpdateStatus("Running SteamCMD...");
-
-            using (var process = new Process())
+            if (MessageBox.Show(
+                "Are you sure you want to cancel the installation?",
+                "Confirm Cancellation",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) == DialogResult.Yes)
             {
-                process.StartInfo.FileName = steamCmdPath;
-                process.StartInfo.Arguments = $"+runscript \"{scriptFileBox.Text}\" +quit";
-                process.StartInfo.UseShellExecute = false;
-                process.StartInfo.RedirectStandardOutput = true;
-                process.StartInfo.CreateNoWindow = true;
-
-                process.OutputDataReceived += (s, e) => 
-                {
-                    if (!string.IsNullOrEmpty(e.Data))
-                        Log($"SteamCMD: {e.Data}");
-                };
-
-                process.Start();
-                process.BeginOutputReadLine();
-                process.WaitForExit();
-
-                if (process.ExitCode != 0)
-                {
-                    throw new Exception($"SteamCMD exited with code {process.ExitCode}");
-                }
-            }
-
-            ProcessDownloadedMods();
-        }
-
-        private void ProcessDownloadedMods()
-        {
-            string workshopBase = Path.Combine(
-                Path.GetDirectoryName(steamCmdPath), 
-                "steamapps", 
-                "workshop", 
-                "content"
-            );
-            
-            UpdateStatus("Processing mods...");
-
-            if (!Directory.Exists(workshopBase))
-            {
-                throw new Exception("Workshop directory not found");
-            }
-
-            int modsProcessed = 0;
-            foreach (var gameDir in Directory.GetDirectories(workshopBase))
-            {
-                string gameId = Path.GetFileName(gameDir);
-                foreach (var modDir in Directory.GetDirectories(gameDir))
-                {
-                    ProcessMod(modDir, gameId, ref modsProcessed);
-                }
-            }
-
-            Log($"Installation complete! {modsProcessed} mods processed.");
-
-            if (cleanupCheckBox.Checked && modsProcessed > 0)
-            {
-                CleanupWorkshopFiles(workshopBase);
-            }
-
-            UpdateStatus("Ready");
-        }
-
-        private void ProcessMod(string modDir, string gameId, ref int modsProcessed)
-        {
-            string modId = Path.GetFileName(modDir);
-            Log($"Processing mod {modId}...");
-
-            var modsDir = Directory.GetDirectories(modDir, "mods").FirstOrDefault();
-            if (modsDir != null)
-            {
-                Directory.CreateDirectory(targetDirBox.Text);
-                CopyDirectory(modsDir, targetDirBox.Text);
-                
-                File.WriteAllText(
-                    Path.Combine(targetDirBox.Text, $"mod_{modId}.info"),
-                    $"# Mod Info\nSteam Workshop ID: {modId}\n" +
-                    $"Game ID: {gameId}\nInstallation Date: {DateTime.Now}"
-                );
-
-                modsProcessed++;
-                Log($"Mod {modId} installed successfully");
+                cancellationTokenSource?.Cancel();
+                UpdateStatus("Cancelling...");
             }
         }
 
-        private void CleanupWorkshopFiles(string workshopBase)
+        private void UpdateProgress(InstallationProgress progress)
         {
-            UpdateStatus("Cleaning up...");
-            try
+            if (InvokeRequired)
             {
-                Directory.Delete(workshopBase, true);
-                Log("Workshop directory cleaned up");
-            }
-            catch (Exception ex)
-            {
-                Log($"Cleanup failed: {ex.Message}");
-            }
-        }
-
-        private void CopyDirectory(string sourceDir, string targetDir)
-        {
-            foreach (var file in Directory.GetFiles(sourceDir))
-            {
-                string fileName = Path.GetFileName(file);
-                string destFile = Path.Combine(targetDir, fileName);
-                File.Copy(file, destFile, true);
+                Invoke(new Action<InstallationProgress>(UpdateProgress), progress);
+                return;
             }
 
-            foreach (var dir in Directory.GetDirectories(sourceDir))
-            {
-                string dirName = Path.GetFileName(dir);
-                string destDir = Path.Combine(targetDir, dirName);
-                Directory.CreateDirectory(destDir);
-                CopyDirectory(dir, destDir);
-            }
+            progressBar.Value = progress.ProgressPercentage;
+            UpdateStatus(progress.CurrentOperation);
         }
 
         private void SetControlsEnabled(bool enabled)
@@ -369,17 +441,27 @@ namespace WorkshopManager
             statusLabel.Text = message;
         }
 
-        private void Log(string message)
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        protected override void Dispose(bool disposing)
         {
-            if (InvokeRequired)
+            if (disposing)
             {
-                Invoke(new Action<string>(Log), message);
-                return;
+                cancellationTokenSource?.Dispose();
+                targetDirBox?.Dispose();
+                scriptFileBox?.Dispose();
+                browseTargetButton?.Dispose();
+                browseScriptButton?.Dispose();
+                installButton?.Dispose();
+                progressBar?.Dispose();
+                logBox?.Dispose();
+                cleanupCheckBox?.Dispose();
+                statusLabel?.Dispose();
+                cancelButton?.Dispose();
+                components?.Dispose();
             }
-
-            logBox.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
-            logBox.SelectionStart = logBox.TextLength;
-            logBox.ScrollToCaret();
+            base.Dispose(disposing);
         }
     }
 }
