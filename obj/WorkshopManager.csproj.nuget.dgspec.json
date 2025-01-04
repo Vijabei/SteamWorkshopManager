@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj": {}
+    "C:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj": {}
   },
   "projects": {
-    "c:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj": {
+    "C:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj",
+        "projectUniqueName": "C:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj",
         "projectName": "WorkshopManager",
-        "projectPath": "c:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj",
+        "projectPath": "C:\\Users\\vijab\\Desktop\\steamworkshopmanager\\WorkshopManager.csproj",
         "packagesPath": "C:\\Users\\vijab\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\vijab\\Desktop\\steamworkshopmanager\\obj\\",
+        "outputPath": "C:\\Users\\vijab\\Desktop\\steamworkshopmanager\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "c:\\Users\\vijab\\Desktop\\steamworkshopmanager\\NuGet.Config",
+          "C:\\Users\\vijab\\Desktop\\steamworkshopmanager\\NuGet.Config",
           "C:\\Users\\vijab\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
