@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Diagnostics;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace WorkshopManager
 {
@@ -22,15 +23,19 @@ namespace WorkshopManager
         private readonly string targetDir;
         private readonly string scriptFile;
         private readonly bool cleanup;
-        private string currentGameId;  // Neue Variable für die Game ID
+        private string currentGameId;
+        private readonly bool copyNewOnly;
+        private readonly HashSet<string> newModIds;
 
-        public InstallationService(Logger logger, string steamCmdPath, string targetDir, string scriptFile, bool cleanup)
+        public InstallationService(Logger logger, string steamCmdPath, string targetDir, string scriptFile, bool cleanup, bool copyNewOnly)
         {
             this.logger = logger;
             this.steamCmdPath = steamCmdPath;
             this.targetDir = targetDir;
             this.scriptFile = scriptFile;
             this.cleanup = cleanup;
+            this.copyNewOnly = copyNewOnly;
+            this.newModIds = new HashSet<string>();
         }
 
         public async Task InstallModsAsync(IProgress<InstallationProgress> progress, CancellationToken cancellationToken)
@@ -39,10 +44,17 @@ namespace WorkshopManager
             
             try
             {
-                // Count total mods from script file
-                installProgress.TotalMods = File.ReadAllLines(scriptFile)
-                    .Count(line => line.Trim().StartsWith("workshop_download_item"));
-                progress.Report(installProgress);
+                // Extract mod IDs from script file
+                var scriptModIds = File.ReadAllLines(scriptFile)
+                .Where(line => line.Trim().StartsWith("workshop_download_item"))
+                .Select(line => line.Split(' ').Last().Trim())
+                .ToHashSet();
+
+                // Store new mod IDs for later filtering
+                newModIds.UnionWith(scriptModIds);
+
+                // Count total mods to process
+                installProgress.TotalMods = scriptModIds.Count;
 
                 // Run SteamCMD
                 installProgress.CurrentOperation = "Running SteamCMD...";
@@ -70,10 +82,23 @@ namespace WorkshopManager
                     currentGameId = gameId;  // Speichern der aktuellen Game ID
                     foreach (var modDir in Directory.GetDirectories(gameDir))
                     {
+                        string modId = Path.GetFileName(modDir);
+                        
+                        // Skip mods that aren't new if copyNewOnly is enabled
+                        if (copyNewOnly && !newModIds.Contains(modId))
+                        {
+                            logger.Info($"Skipping existing mod {modId}");
+                            continue;
+                        }
+
                         await ProcessModAsync(modDir, gameId, cancellationToken);
-                        installProgress.ProcessedMods++;
-                        installProgress.CurrentOperation = $"Processing mod {installProgress.ProcessedMods} of {installProgress.TotalMods}";
-                        progress.Report(installProgress);
+                        // Only increase progress counter for mods that were in the script
+                        if (scriptModIds.Contains(modId))
+                        {
+                            installProgress.ProcessedMods++;
+                            installProgress.CurrentOperation = $"Processing mod {installProgress.ProcessedMods} of {installProgress.TotalMods}";
+                            progress.Report(installProgress);
+                        }
                     }
                 }
 

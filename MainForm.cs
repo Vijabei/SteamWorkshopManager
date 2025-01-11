@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Collections.Generic;
 
 namespace WorkshopManager
 {
@@ -19,6 +20,7 @@ namespace WorkshopManager
         private readonly ProgressBar progressBar;
         private readonly TextBox logBox;
         private readonly CheckBox cleanupCheckBox;
+        private readonly CheckBox copyNewOnlyCheckBox;
         private readonly Label statusLabel;
         private readonly Logger logger;
         private CancellationTokenSource cancellationTokenSource;
@@ -121,10 +123,19 @@ namespace WorkshopManager
                     Margin = new Padding(5)
                 };
 
-                // Initialize checkbox
+                // Initialize checkbox for deleting copied files
                 cleanupCheckBox = new CheckBox
                 {
                     Text = "Clean up workshop files after installation",
+                    Checked = false,
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(5)
+                };
+
+                // Initialize check for only copying new mods
+                copyNewOnlyCheckBox = new CheckBox
+                {
+                    Text = "Only copy new mods",
                     Checked = false,
                     Dock = DockStyle.Fill,
                     Margin = new Padding(5)
@@ -137,6 +148,8 @@ namespace WorkshopManager
                     Dock = DockStyle.Fill,
                     TextAlign = ContentAlignment.MiddleLeft
                 };
+
+
 
                 // Initialize logger after UI components
                 logger = new Logger(logBox);
@@ -184,7 +197,7 @@ namespace WorkshopManager
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
-                RowCount = 7,
+                RowCount = 8,
                 Padding = new Padding(10)
             };
 
@@ -229,22 +242,24 @@ namespace WorkshopManager
             layout.Controls.Add(browseTargetButton, 2, 2);
 
             layout.Controls.Add(cleanupCheckBox, 1, 3);
-            layout.Controls.Add(installButton, 1, 4);
-            layout.Controls.Add(cancelButton, 2, 4);
-            layout.Controls.Add(progressBar, 1, 5);
-            layout.Controls.Add(statusLabel, 0, 5);
+            layout.Controls.Add(copyNewOnlyCheckBox, 1, 4);
+            layout.Controls.Add(installButton, 1, 5);
+            layout.Controls.Add(cancelButton, 2, 5);
+            layout.Controls.Add(progressBar, 1, 6);
+            layout.Controls.Add(statusLabel, 0, 6);
 
             layout.SetColumnSpan(logBox, 3);
-            layout.Controls.Add(logBox, 0, 6);
+            layout.Controls.Add(logBox, 0, 7);
 
             // Configure row styles
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));  // SteamCmd
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));  // Script
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));  // Target
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));  // Cleanup
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));  // CopyNewOnly
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));  // Buttons
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));  // Progress
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // Log
 
             Controls.Add(layout);
         }
@@ -357,7 +372,8 @@ namespace WorkshopManager
                     steamCmdPathBox.Text,
                     targetDirBox.Text,
                     scriptFileBox.Text,
-                    cleanupCheckBox.Checked
+                    cleanupCheckBox.Checked,
+                    copyNewOnlyCheckBox.Checked
                 );
 
                 await installationService.InstallModsAsync(progress, cancellationTokenSource.Token);
@@ -439,6 +455,7 @@ namespace WorkshopManager
             browseScriptButton.Enabled = enabled;
             installButton.Enabled = enabled;
             cleanupCheckBox.Enabled = enabled;
+            copyNewOnlyCheckBox.Enabled = enabled;
         }
 
         private void UpdateStatus(string message)
@@ -469,6 +486,7 @@ namespace WorkshopManager
                 statusLabel?.Dispose();
                 cancelButton?.Dispose();
                 components?.Dispose();
+                copyNewOnlyCheckBox?.Dispose();
             }
             base.Dispose(disposing);
         }
