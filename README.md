@@ -5,7 +5,8 @@
 
 A Windows application designed to simplify the installation and management of Steam Workshop mods. It provides a user-friendly interface for downloading and installing Workshop content using SteamCMD.
 
-![Screenshot of Workshop Manager](https://github.com/user-attachments/assets/9654702e-f161-4aa4-a8e3-42d6aeca719d)
+![Screenshot of Workshop Manager](https://github.com/user-attachments/assets/365bf9bb-8bca-4d42-9ea1-6d034a0c3417)
+
 
 
 
