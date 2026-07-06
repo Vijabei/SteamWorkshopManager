@@ -9,6 +9,7 @@ A Windows application designed to simplify the installation and management of St
 
 ## Features
 
+- 🔄 Automatic updates — the app checks GitHub for new versions and updates itself with one click
 - 🌐 Built-in Steam Workshop browser (WebView2) — browse collections and mods, import them with one click
 - 📦 Local collection processing via the official Steam Web API (nested collections supported, no scraping)
 - 👤 Import your subscribed items from your Steam profile (all pages, using your own browser session)
