@@ -1,2 +1,0 @@
-c:\Users\vijab\Desktop\testator\PublishOutput\WorkshopManager.dll.config
-c:\Users\vijab\Desktop\testator\PublishOutput\WorkshopManager.exe

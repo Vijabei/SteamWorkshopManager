@@ -1,0 +1,14 @@
+# Build output
+bin/
+obj/
+
+# Logs written next to the exe during development
+*.log
+
+# Per-machine user settings
+workshopmanager_settings.json
+
+# IDE
+.vs/
+*.user
+publish*/

@@ -1,1 +1,0 @@
-C:\Users\vijab\Desktop\steamworkshopmanager\bin\Release\net8.0-windows\win-x64\publish\WorkshopManager.exe
