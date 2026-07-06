@@ -52,30 +52,32 @@ namespace WorkshopManager
         }
 
         /// <summary>
-        /// Deletes the leftover .old file from a previous update.
-        /// Call once at startup.
+        /// Deletes the leftover .old file from a previous update. Runs in
+        /// the background because the old process keeps its exe locked
+        /// until it has fully exited.
         /// </summary>
         public static void CleanupAfterUpdate()
         {
             try
             {
                 string oldExe = Environment.ProcessPath + ".old";
-                if (File.Exists(oldExe))
+                if (!File.Exists(oldExe)) return;
+
+                Task.Run(async () =>
                 {
-                    // The previous process may still be shutting down
-                    for (int attempt = 0; attempt < 5; attempt++)
+                    for (int attempt = 0; attempt < 30; attempt++)
                     {
                         try
                         {
                             File.Delete(oldExe);
-                            break;
+                            return;
                         }
-                        catch (IOException)
+                        catch
                         {
-                            Thread.Sleep(300);
+                            await Task.Delay(1000);
                         }
                     }
-                }
+                });
             }
             catch
             {
