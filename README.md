@@ -5,7 +5,7 @@
 
 A Windows application designed to simplify the installation and management of Steam Workshop mods. It resolves Workshop collections locally via the official Steam Web API, downloads mods with SteamCMD and installs them into your game — no external website or script files required.
 
-![Screenshot of Workshop Manager](https://github.com/user-attachments/assets/365bf9bb-8bca-4d42-9ea1-6d034a0c3417)
+![Screenshot of Workshop Manager](docs/screenshot.png)
 
 ## Features
 
