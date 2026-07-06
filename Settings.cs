@@ -40,6 +40,13 @@ namespace WorkshopManager
         // Internal browser
         public string BrowserHomeUrl { get; set; } = "https://steamcommunity.com/workshop/";
 
+        // Auto-update
+        /// <summary>Check GitHub for a newer release on startup.</summary>
+        public bool CheckForUpdates { get; set; } = true;
+
+        /// <summary>Version the user chose to skip; empty = none.</summary>
+        public string SkippedUpdateVersion { get; set; } = "";
+
         /// <summary>Per-game overrides keyed by app id.</summary>
         public Dictionary<string, GameRule> GameRules { get; set; } = new();
 

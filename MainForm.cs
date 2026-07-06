@@ -81,7 +81,11 @@ namespace WorkshopManager
                 logger = new Logger(logBox);
 
                 FormClosing += MainForm_FormClosing;
-                Shown += async (s, e) => await InitializeWebViewAsync();
+                Shown += async (s, e) =>
+                {
+                    await InitializeWebViewAsync();
+                    await CheckForUpdatesAsync();
+                };
             }
             catch (Exception ex)
             {
@@ -428,6 +432,85 @@ namespace WorkshopManager
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleRight
         };
+
+        #endregion
+
+        #region Updates
+
+        /// <summary>
+        /// Silent startup check for a newer release on GitHub. Failures are
+        /// only logged - updates must never block using the app.
+        /// </summary>
+        private async Task CheckForUpdatesAsync()
+        {
+            if (!settings.CheckForUpdates) return;
+
+            try
+            {
+                var updateService = new UpdateService();
+                var update = await updateService.CheckForUpdateAsync(CancellationToken.None);
+
+                if (!update.UpdateAvailable)
+                {
+                    logger.Info($"Workshop Manager {update.CurrentVersion} is up to date");
+                    return;
+                }
+
+                if (settings.SkippedUpdateVersion == update.LatestVersion.ToString())
+                {
+                    logger.Info($"Update {update.LatestVersion} available but skipped by user choice");
+                    return;
+                }
+
+                var choice = MessageBox.Show(
+                    $"A new version is available: {update.LatestVersion} " +
+                    $"(installed: {update.CurrentVersion}).\n\n" +
+                    "Install now? The app will restart automatically.\n\n" +
+                    "Yes = update now\nNo = remind me next time\nCancel = skip this version",
+                    "Update available",
+                    MessageBoxButtons.YesNoCancel,
+                    MessageBoxIcon.Information);
+
+                if (choice == DialogResult.Cancel)
+                {
+                    settings.SkippedUpdateVersion = update.LatestVersion.ToString();
+                    settings.Save();
+                    return;
+                }
+
+                if (choice != DialogResult.Yes) return;
+
+                SetControlsEnabled(false);
+                try
+                {
+                    await updateService.DownloadAndApplyAsync(
+                        update, new Progress<string>(UpdateStatus), CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"Update failed: {ex.Message}");
+                    SetControlsEnabled(true);
+                    UpdateStatus("Ready");
+
+                    if (MessageBox.Show(
+                        $"The automatic update failed:\n{ex.Message}\n\n" +
+                        "Open the download page in the browser instead?",
+                        "Update failed", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = update.ReleasePageUrl,
+                            UseShellExecute = true
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // No network, rate limit, etc. - never bother the user
+                logger.Info($"Update check skipped: {ex.Message}");
+            }
+        }
 
         #endregion
 
