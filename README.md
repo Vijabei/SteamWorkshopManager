@@ -3,49 +3,50 @@
 ![License](https://img.shields.io/badge/License-CC%20BY--NC-lightgrey.svg)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)
 
-A Windows application designed to simplify the installation and management of Steam Workshop mods. It provides a user-friendly interface for downloading and installing Workshop content using SteamCMD.
+A Windows application designed to simplify the installation and management of Steam Workshop mods. It resolves Workshop collections locally via the official Steam Web API, downloads mods with SteamCMD and installs them into your game — no external website or script files required.
 
 ![Screenshot of Workshop Manager](https://github.com/user-attachments/assets/365bf9bb-8bca-4d42-9ea1-6d034a0c3417)
 
-
-
-
-
 ## Features
 
-- 🎮 Easy installation of Steam Workshop mods
-- 📊 Real-time progress tracking
+- 🌐 Built-in Steam Workshop browser (WebView2) — browse collections and mods, import them with one click
+- 📦 Local collection processing via the official Steam Web API (nested collections supported, no scraping)
+- 👤 Import your subscribed items from your Steam profile (all pages, using your own browser session)
+- ⬇️ One-click SteamCMD download and setup
+- 🔁 Batched downloads with automatic retries — reliable even for large collections
+- 🔍 Mod list with titles, sizes, update dates, and installed/update-available status
+- ⏭️ Skips already installed mods (optional) and detects available updates
+- 📊 Real-time progress tracking and cancellable operations
+- 🧹 Optional cleanup of raw workshop files after installation (all games in the run)
 - 📝 Comprehensive logging system
-- 🧹 Optional cleanup of workshop files
-- ⚙️ Configurable SteamCMD integration
-- ⏹️ Cancellable operations
-- 📄 Automatic mod info generation
+- 📄 Legacy SteamCMD script files (e.g. from softknight.de) can still be imported
 
 ## Prerequisites
 
 - Windows 64-bit operating system
 - [.NET 8.0 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
-- [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) installed
+- [Microsoft WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (preinstalled on Windows 10/11; only needed for the built-in browser)
 - Sufficient disk space for mod downloads
+
+SteamCMD is **not** required upfront — the app can download and set it up for you via the "Get SteamCMD" button.
 
 ## Getting Started
 
 1. Download the latest release from the [releases page](https://github.com/Vijabei/SteamWorkshopManager/releases)
-2. Extract the files to your desired location
-3. Run `WorkshopManager.exe`
-4. Configure the SteamCMD path in the application
+2. Extract the files to your desired location and run `WorkshopManager.exe`
+3. On the **Mods & Install** tab, set the SteamCMD path (or click **Get SteamCMD**) and choose your mod install folder
+4. Add mods in one of three ways:
+   - Browse the Workshop on the **Workshop Browser** tab and click **Add this collection / mod to list**
+   - Paste a collection/mod URL or id into the **Add mods** field
+   - Import a legacy SteamCMD script file via **Load script...**
+5. Click **Install Mods**
 
-## Script Generation
+## Notes on Steam usage
 
-The Workshop Manager requires a SteamCMD script to download mods. You have two options to generate these scripts:
-
-### Option 1: Online Generator
-Visit [softknight.de](https://softknight.de) and use the provided script generator.
-
-### Option 2: Browser Extension
-1. Download the Tampermonkey script from [softknight.de](https://softknight.de)
-2. Install it in your browser
-3. The script will integrate with Steam Workshop pages for direct script generation
+- Collections are resolved through the official, public Steam Web API — no login, no API key, and no HTML scraping involved.
+- Downloads use SteamCMD with anonymous login. Some games do not allow anonymous workshop downloads; affected items are reported as failed in the mod list.
+- Downloads run in small batches with automatic retries to stay well within Steam's limits.
+- Your Steam credentials are never requested or stored by this application.
 
 ## Building from Source
 
