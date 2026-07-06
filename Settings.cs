@@ -1,10 +1,20 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using System.Windows.Forms;
 
 namespace WorkshopManager
 {
+    /// <summary>
+    /// Optional per-game installation rule. If a game has no rule (or an
+    /// empty target directory), the global target directory is used.
+    /// </summary>
+    public class GameRule
+    {
+        public string TargetDirectory { get; set; } = "";
+    }
+
     public class Settings
     {
         private static readonly string SettingsPath = Path.Combine(
@@ -15,6 +25,23 @@ namespace WorkshopManager
         public string SteamCmdPath { get; set; } = "";
         public string LastTargetDirectory { get; set; } = "";
         public string LastScriptFile { get; set; } = "";
+
+        // Installation behaviour
+        public bool CleanupAfterInstall { get; set; } = false;
+        public bool SkipInstalledMods { get; set; } = true;
+
+        /// <summary>Mods per SteamCMD invocation; large collections are split
+        /// into batches to avoid SteamCMD timeouts.</summary>
+        public int BatchSize { get; set; } = 30;
+
+        /// <summary>How often a failed download is retried before giving up.</summary>
+        public int MaxRetries { get; set; } = 2;
+
+        // Internal browser
+        public string BrowserHomeUrl { get; set; } = "https://steamcommunity.com/workshop/";
+
+        /// <summary>Per-game overrides keyed by app id.</summary>
+        public Dictionary<string, GameRule> GameRules { get; set; } = new();
 
         public static Settings Load()
         {
@@ -62,7 +89,7 @@ namespace WorkshopManager
             if (string.IsNullOrWhiteSpace(path))
                 return false;
 
-            return File.Exists(path) && 
+            return File.Exists(path) &&
                    Path.GetFileName(path).Equals("steamcmd.exe", StringComparison.OrdinalIgnoreCase);
         }
     }
