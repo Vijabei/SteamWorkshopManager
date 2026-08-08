@@ -26,6 +26,20 @@ namespace WorkshopManager
         /// <summary>Unix timestamp of the last workshop update, 0 if unknown.</summary>
         public long TimeUpdated { get; set; }
 
+        /// <summary>Workshop description. Archived locally so it survives
+        /// the item being removed from the Workshop.</summary>
+        public string Description { get; set; } = "";
+
+        /// <summary>Workshop tags, comma separated. Includes the supported
+        /// game versions for many games.</summary>
+        public string Tags { get; set; } = "";
+
+        /// <summary>URL of the preview image, empty if unknown.</summary>
+        public string PreviewUrl { get; set; } = "";
+
+        /// <summary>True if the item has been removed from the Workshop.</summary>
+        public bool Banned { get; set; }
+
         public WorkshopItemStatus Status { get; set; } = WorkshopItemStatus.Pending;
 
         public string StatusText => Status switch

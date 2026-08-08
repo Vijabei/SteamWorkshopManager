@@ -167,7 +167,12 @@ namespace WorkshopManager
                             : fallbackAppId,
                         Title = ok ? ((string)d["title"] ?? $"Mod {id}") : $"Mod {id} (details unavailable)",
                         FileSize = ok ? ((long?)d["file_size"] ?? 0) : 0,
-                        TimeUpdated = ok ? ((long?)d["time_updated"] ?? 0) : 0
+                        TimeUpdated = ok ? ((long?)d["time_updated"] ?? 0) : 0,
+                        Description = ok ? ((string)d["description"] ?? "") : "",
+                        PreviewUrl = ok ? ((string)d["preview_url"] ?? "") : "",
+                        Tags = ok ? string.Join(", ", (d["tags"] as JArray ?? new JArray())
+                            .Select(t => (string)t["tag"]).Where(t => !string.IsNullOrEmpty(t))) : "",
+                        Banned = ok && ((bool?)d["banned"] ?? false)
                     });
                 }
 

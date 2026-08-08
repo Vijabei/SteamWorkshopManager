@@ -354,6 +354,9 @@ namespace WorkshopManager
                 }, cancellationToken);
 
                 string infoFile = Path.Combine(gameTarget, $"mod_{mod.ModId}.info");
+                // The description is archived here on purpose: once an item is
+                // removed from the Workshop its metadata can no longer be
+                // fetched, so it has to be captured at install time.
                 await File.WriteAllTextAsync(
                     infoFile,
                     "# Mod Info\n" +
@@ -361,7 +364,11 @@ namespace WorkshopManager
                     $"Game ID: {mod.AppId}\n" +
                     $"Title: {mod.Title}\n" +
                     $"Time Updated: {mod.TimeUpdated}\n" +
-                    $"Installation Date: {DateTime.Now}",
+                    $"Tags: {mod.Tags}\n" +
+                    $"Preview Image: {mod.PreviewUrl}\n" +
+                    $"Installation Date: {DateTime.Now}\n" +
+                    "\n# Description\n" +
+                    mod.Description,
                     cancellationToken
                 );
 
