@@ -64,6 +64,7 @@ namespace WorkshopManager
         private TextBox searchBox;
         private ListView modListView;
         private ModDetailPanel detailPanel;
+        private ContextMenuStrip modContextMenu;
         private Button themeButton;
         private Button channelButton;
         private Panel bottomBar;
@@ -458,10 +459,20 @@ namespace WorkshopManager
             modListView.Columns.Add("Size", 70);
             modListView.Columns.Add("Updated", 82);
             modListView.Columns.Add("Status", 88);
+            // Last column, so it takes the remaining width - requirement lists
+            // are the widest thing in the table.
+            modListView.Columns.Add("Requires", 200);
             modListView.SelectedIndexChanged += ModListSelectionChanged;
+            modListView.DoubleClick += (s, e) => OpenSelectedModInBrowser();
+
+            modContextMenu = new ContextMenuStrip();
+            modContextMenu.Opening += BuildModContextMenu;
+            Theme.StyleMenu(modContextMenu);
+            modListView.ContextMenuStrip = modContextMenu;
             Theme.StyleListView(modListView);
 
             detailPanel = new ModDetailPanel { Dock = DockStyle.Fill };
+            detailPanel.OpenUrlRequested += OpenInInternalBrowser;
 
             // List on the left, details on the right. The detail pane keeps
             // its width when the window is resized.
@@ -1002,6 +1013,10 @@ namespace WorkshopManager
                             mod.RequiredMods = requirements.RequiredMods;
                             mod.RequiredDlc = requirements.RequiredDlc;
                             mod.RequirementsChecked = true;
+
+                            // The row carries the requirements now, so it has
+                            // to be redrawn as each result comes in.
+                            UpdateListViewItem(mod);
                         }
                         catch (OperationCanceledException)
                         {
@@ -1026,6 +1041,10 @@ namespace WorkshopManager
                     cancelButton.Enabled = false;
                     progressBar.Value = 0;
                     UpdateStatus("Ready");
+
+                    // Let the detail pane pick up the requirements of whatever
+                    // is selected right now
+                    ModListSelectionChanged(null, EventArgs.Empty);
                 }
             }
 
@@ -1232,6 +1251,7 @@ namespace WorkshopManager
                     lvi.SubItems.Add(item.FileSizeText);
                     lvi.SubItems.Add(item.TimeUpdatedText);
                     lvi.SubItems.Add(item.StatusText);
+                    lvi.SubItems.Add(item.RequirementsText);
 
                     modListView.Items.Add(lvi);
                     listViewItems[item] = lvi;
@@ -1277,6 +1297,91 @@ namespace WorkshopManager
             catch
             {
                 // Keep the default split rather than failing startup
+            }
+        }
+
+        /// <summary>
+        /// Shows a page in the built-in browser instead of an external one, so
+        /// the user stays inside the app and keeps their Steam session.
+        /// </summary>
+        private void OpenInInternalBrowser(string url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return;
+
+            tabControl.SelectedTab = browserTab;
+            NavigateTo(url);
+        }
+
+        private void OpenSelectedModInBrowser()
+        {
+            if (modListView.SelectedItems.Count == 0) return;
+            if (modListView.SelectedItems[0].Tag is WorkshopItem item)
+            {
+                OpenInInternalBrowser(item.WorkshopUrl);
+            }
+        }
+
+        /// <summary>
+        /// Builds the row menu on demand: the required mods differ per row and
+        /// are only known once the requirements have been checked.
+        /// </summary>
+        private void BuildModContextMenu(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            modContextMenu.Items.Clear();
+
+            if (modListView.SelectedItems.Count == 0 ||
+                modListView.SelectedItems[0].Tag is not WorkshopItem item)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            void Add(string text, Action action, bool enabled = true)
+            {
+                var entry = new ToolStripMenuItem(text) { ForeColor = Theme.Text, Enabled = enabled };
+                entry.Click += (s, args) => action();
+                modContextMenu.Items.Add(entry);
+            }
+
+            Add("Open in workshop browser", () => OpenInInternalBrowser(item.WorkshopUrl));
+            Add("Open on Steam (external browser)", () => OpenExternally(item.WorkshopUrl));
+
+            if (item.RequiredMods.Count > 0 || item.RequiredDlc.Count > 0)
+            {
+                modContextMenu.Items.Add(new ToolStripSeparator());
+
+                foreach (var requirement in item.RequiredMods)
+                {
+                    var url = $"https://steamcommunity.com/sharedfiles/filedetails/?id={requirement.Id}";
+                    Add($"Requires: {requirement.Name}", () => OpenInInternalBrowser(url));
+                }
+
+                foreach (var dlc in item.RequiredDlc)
+                {
+                    var url = $"https://store.steampowered.com/app/{dlc.Id}";
+                    Add($"Requires DLC: {dlc.Name}", () => OpenInInternalBrowser(url));
+                }
+            }
+            else if (item.RequirementsChecked)
+            {
+                modContextMenu.Items.Add(new ToolStripSeparator());
+                Add("No requirements declared", () => { }, enabled: false);
+            }
+        }
+
+        private static void OpenExternally(string url)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // No browser available - not worth interrupting the user
             }
         }
 
@@ -1359,6 +1464,7 @@ namespace WorkshopManager
             lvi.SubItems[3].Text = item.FileSizeText;
             lvi.SubItems[4].Text = item.TimeUpdatedText;
             lvi.SubItems[5].Text = item.StatusText;
+            lvi.SubItems[6].Text = item.RequirementsText;
 
             ApplyRowAppearance(item, lvi);
         }

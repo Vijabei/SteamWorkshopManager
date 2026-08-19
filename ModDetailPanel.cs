@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
@@ -19,13 +20,19 @@ namespace WorkshopManager
         private readonly Label titleLabel;
         private readonly Label metaLabel;
         private readonly Label statusLabel;
-        private readonly Label requirementsLabel;
+        private readonly LinkLabel requirementsLabel;
         private readonly TextBox descriptionBox;
         private readonly Button openOnSteamButton;
         private readonly Label emptyHint;
 
         private WorkshopItem current;
         private CancellationTokenSource imageCts;
+
+        /// <summary>
+        /// Raised when the user clicks a requirement. The form decides where
+        /// to show it - currently the built-in workshop browser.
+        /// </summary>
+        public event Action<string> OpenUrlRequested;
 
         public ModDetailPanel()
         {
@@ -79,12 +86,19 @@ namespace WorkshopManager
                 Margin = new Padding(0, 0, 0, 4)
             };
 
-            requirementsLabel = new Label
+            // A LinkLabel so each required mod can be clicked straight through
+            // to its workshop page.
+            requirementsLabel = new LinkLabel
             {
                 Dock = DockStyle.Fill,
                 Font = Theme.SmallFont,
                 ForeColor = Theme.TextDim,
-                Margin = new Padding(0, 0, 0, 6)
+                Margin = new Padding(0, 0, 0, 6),
+                LinkBehavior = LinkBehavior.HoverUnderline
+            };
+            requirementsLabel.LinkClicked += (s, e) =>
+            {
+                if (e.Link?.LinkData is string url) OpenUrlRequested?.Invoke(url);
             };
 
             descriptionBox = new TextBox
@@ -149,6 +163,9 @@ namespace WorkshopManager
             titleLabel.ForeColor = Theme.Text;
             metaLabel.ForeColor = Theme.TextDim;
             requirementsLabel.ForeColor = Theme.TextDim;
+            requirementsLabel.LinkColor = Theme.Accent;
+            requirementsLabel.ActiveLinkColor = Theme.AccentHover;
+            requirementsLabel.VisitedLinkColor = Theme.Accent;
             emptyHint.ForeColor = Theme.TextDim;
 
             descriptionBox.BackColor = Theme.SurfaceAlt;
@@ -190,7 +207,7 @@ namespace WorkshopManager
                 _ => Theme.TextDim
             };
 
-            requirementsLabel.Text = DescribeRequirements(item);
+            ShowRequirements(item);
 
             descriptionBox.Text = string.IsNullOrWhiteSpace(item.Description)
                 ? "(no description archived - it is stored when the mod is installed)"
@@ -200,31 +217,55 @@ namespace WorkshopManager
             LoadPreview(item);
         }
 
-        private static string DescribeRequirements(WorkshopItem item)
+        /// <summary>
+        /// Writes the requirements and turns every entry into a link. The link
+        /// ranges are computed while the text is assembled, which is why this
+        /// cannot just return a string.
+        /// </summary>
+        private void ShowRequirements(WorkshopItem item)
         {
+            requirementsLabel.Links.Clear();
+
             if (!item.RequirementsChecked)
             {
-                return "Requirements: not checked yet - use \"Check requirements\".";
+                requirementsLabel.Text = "Requirements: not checked yet - use \"Check requirements\".";
+                return;
             }
 
             if (item.RequiredMods.Count == 0 && item.RequiredDlc.Count == 0)
             {
-                return "Requirements: none declared.";
+                requirementsLabel.Text = "Requirements: none declared.";
+                return;
             }
 
-            var lines = "";
-            if (item.RequiredMods.Count > 0)
+            var text = "";
+            var links = new List<(int Start, int Length, string Url)>();
+
+            void AppendGroup(string caption, List<ModRequirement> entries, Func<ModRequirement, string> toUrl)
             {
-                lines += "Requires mods: " +
-                    string.Join(", ", item.RequiredMods.Select(r => r.Name)) + "\n";
-            }
-            if (item.RequiredDlc.Count > 0)
-            {
-                lines += "Requires DLC: " +
-                    string.Join(", ", item.RequiredDlc.Select(r => r.Name));
+                if (entries.Count == 0) return;
+                if (text.Length > 0) text += Environment.NewLine;
+
+                text += caption;
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    if (i > 0) text += ", ";
+                    var name = string.IsNullOrEmpty(entries[i].Name) ? entries[i].Id : entries[i].Name;
+                    links.Add((text.Length, name.Length, toUrl(entries[i])));
+                    text += name;
+                }
             }
 
-            return lines.TrimEnd();
+            AppendGroup("Requires: ", item.RequiredMods,
+                r => $"https://steamcommunity.com/sharedfiles/filedetails/?id={r.Id}");
+            AppendGroup("Requires DLC: ", item.RequiredDlc,
+                r => $"https://store.steampowered.com/app/{r.Id}");
+
+            requirementsLabel.Text = text;
+            foreach (var link in links)
+            {
+                requirementsLabel.Links.Add(link.Start, link.Length, link.Url);
+            }
         }
 
         private async void LoadPreview(WorkshopItem item)

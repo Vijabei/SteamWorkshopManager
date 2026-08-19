@@ -263,6 +263,32 @@ namespace WorkshopManager
         }
 
         /// <summary>
+        /// Colours a context menu. Menus render in system colours otherwise,
+        /// which means a bright popup over the dark window.
+        /// </summary>
+        public static void StyleMenu(ToolStripDropDown menu)
+        {
+            menu.BackColor = Surface;
+            menu.ForeColor = Text;
+            menu.Renderer = new ToolStripProfessionalRenderer(new MenuColours());
+        }
+
+        private sealed class MenuColours : ProfessionalColorTable
+        {
+            public override Color ToolStripDropDownBackground => Surface;
+            public override Color MenuItemSelected => SurfaceHover;
+            public override Color MenuItemSelectedGradientBegin => SurfaceHover;
+            public override Color MenuItemSelectedGradientEnd => SurfaceHover;
+            public override Color MenuItemBorder => Accent;
+            public override Color MenuBorder => Border;
+            public override Color ImageMarginGradientBegin => Surface;
+            public override Color ImageMarginGradientMiddle => Surface;
+            public override Color ImageMarginGradientEnd => Surface;
+            public override Color SeparatorDark => Border;
+            public override Color SeparatorLight => Border;
+        }
+
+        /// <summary>
         /// Widens the last column to the right edge. The header strip beyond
         /// the last column is drawn by the native header control in system
         /// colours and cannot be painted over, so it is removed instead.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace WorkshopManager
 {
@@ -58,6 +59,35 @@ namespace WorkshopManager
         /// told apart from "not checked yet".
         /// </summary>
         public bool RequirementsChecked { get; set; }
+
+        /// <summary>
+        /// Compact requirement summary for the list column. Empty while the
+        /// requirements have not been looked up, so "checked and none" stays
+        /// distinguishable from "not checked".
+        /// </summary>
+        public string RequirementsText
+        {
+            get
+            {
+                if (!RequirementsChecked) return "";
+                if (RequiredMods.Count == 0 && RequiredDlc.Count == 0) return "-";
+
+                var parts = new List<string>();
+                if (RequiredMods.Count > 0)
+                {
+                    parts.Add(string.Join(", ", RequiredMods.Select(r => r.Name)));
+                }
+                if (RequiredDlc.Count > 0)
+                {
+                    parts.Add("DLC: " + string.Join(", ", RequiredDlc.Select(r => r.Name)));
+                }
+
+                return string.Join("  -  ", parts);
+            }
+        }
+
+        /// <summary>Workshop page of this item.</summary>
+        public string WorkshopUrl => $"https://steamcommunity.com/sharedfiles/filedetails/?id={ModId}";
 
         public WorkshopItemStatus Status { get; set; } = WorkshopItemStatus.Pending;
 
