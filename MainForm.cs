@@ -63,6 +63,8 @@ namespace WorkshopManager
         private CheckBox skipInstalledCheckBox;
         private TextBox searchBox;
         private ListView modListView;
+        private ModDetailPanel detailPanel;
+        private SplitContainer listSplit;
         private Button installButton;
         private Button cancelButton;
         private ProgressBar progressBar;
@@ -81,11 +83,16 @@ namespace WorkshopManager
                 InitializeComponent();
                 SetupUI();
 
+                Theme.Apply(this);
+                Theme.StylePrimary(installButton);
+
                 logger = new Logger(logBox);
 
                 FormClosing += MainForm_FormClosing;
                 Shown += async (s, e) =>
                 {
+                    Theme.ApplyDarkTitleBar(this);
+                    ApplyInitialSplitterDistance();
                     await InitializeWebViewAsync();
                     await CheckForUpdatesAsync();
                 };
@@ -352,15 +359,33 @@ namespace WorkshopManager
                 FullRowSelect = true,
                 HideSelection = false
             };
-            modListView.Columns.Add("Title", 320);
-            modListView.Columns.Add("Mod ID", 100);
-            modListView.Columns.Add("Game ID", 75);
-            modListView.Columns.Add("Size", 75);
-            modListView.Columns.Add("Updated", 85);
-            modListView.Columns.Add("Status", 130);
+            // Narrower than before: the detail pane now takes part of the width
+            modListView.Columns.Add("Title", 225);
+            modListView.Columns.Add("Mod ID", 85);
+            modListView.Columns.Add("Game", 60);
+            modListView.Columns.Add("Size", 70);
+            modListView.Columns.Add("Updated", 82);
+            modListView.Columns.Add("Status", 88);
+            modListView.SelectedIndexChanged += ModListSelectionChanged;
+            Theme.StyleListView(modListView);
 
-            layout.Controls.Add(modListView, 0, 4);
-            layout.SetColumnSpan(modListView, 4);
+            detailPanel = new ModDetailPanel { Dock = DockStyle.Fill };
+
+            // List on the left, details on the right. The detail pane keeps
+            // its width when the window is resized.
+            // Panel1MinSize/Panel2MinSize are applied later: the container is
+            // still at its design width here and would reject them.
+            listSplit = new SplitContainer
+            {
+                Dock = DockStyle.Fill,
+                Margin = new Padding(3),
+                SplitterWidth = 6
+            };
+            listSplit.Panel1.Controls.Add(modListView);
+            listSplit.Panel2.Controls.Add(detailPanel);
+
+            layout.Controls.Add(listSplit, 0, 4);
+            layout.SetColumnSpan(listSplit, 4);
 
             // Row 5: List management buttons
             var listButtonsPanel = new FlowLayoutPanel
@@ -1124,10 +1149,48 @@ namespace WorkshopManager
                 modListView.EndUpdate();
             }
 
+            // The vertical scroll bar appears only now, so the last column has
+            // to be measured against the reduced client width again.
+            Theme.StretchLastColumn(modListView);
+
             if (!string.IsNullOrWhiteSpace(filter))
             {
                 UpdateStatus($"Showing {modListView.Items.Count} of {modItems.Count} mods");
             }
+        }
+
+        /// <summary>
+        /// Gives the detail pane a sensible starting width once the form has
+        /// a real size. Setting SplitterDistance earlier throws, because the
+        /// container is still at its design size then.
+        /// </summary>
+        private void ApplyInitialSplitterDistance()
+        {
+            try
+            {
+                const int listMin = 320;
+                const int detailMin = 260;
+
+                // Distance first, minimum sizes afterwards - the reverse order
+                // fails validation while the splitter still sits at its default.
+                var max = listSplit.Width - detailMin - listSplit.SplitterWidth;
+                if (max <= listMin) return;
+
+                listSplit.SplitterDistance = Math.Clamp(listSplit.Width - 360, listMin, max);
+                listSplit.Panel1MinSize = listMin;
+                listSplit.Panel2MinSize = detailMin;
+            }
+            catch
+            {
+                // Keep the default split rather than failing startup
+            }
+        }
+
+        private void ModListSelectionChanged(object sender, EventArgs e)
+        {
+            detailPanel.ShowItem(modListView.SelectedItems.Count > 0
+                ? modListView.SelectedItems[0].Tag as WorkshopItem
+                : null);
         }
 
         private void RemoveSelectedMods(object sender, EventArgs e)
