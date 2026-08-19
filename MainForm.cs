@@ -20,6 +20,7 @@ namespace WorkshopManager
         private readonly Settings settings;
         private readonly Logger logger;
         private readonly CollectionService collectionService = new();
+        private readonly ModLibrary library = new();
         private CancellationTokenSource cancellationTokenSource;
 
         // Mod list state
@@ -931,18 +932,29 @@ namespace WorkshopManager
                 return;
             }
 
-            var installed = InstallationService.LoadInstalledMods(settings, targetDirBox.Text);
+            // The library is the richer source and survives a wiped game
+            // folder; the info files still cover anything installed before the
+            // library existed, or by an older version.
+            var installed = library.All();
+            var known = new HashSet<string>(installed.Select(m => m.ModId));
+
+            var fromDisk = InstallationService.LoadInstalledMods(settings, targetDirBox.Text);
+            var recovered = fromDisk.Where(m => known.Add(m.ModId)).ToList();
+            installed.AddRange(recovered);
 
             if (installed.Count == 0)
             {
                 MessageBox.Show(
-                    "No installed mods found. Info files are written during installation, " +
-                    "so only mods installed with this app appear here.",
+                    "No installed mods found yet. The library fills up as you install mods " +
+                    "with this app, and it keeps their details even after a mod disappears " +
+                    "from the Workshop.",
                     "Nothing found", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            logger.Info($"Loaded {installed.Count} installed mods from disk");
+            logger.Info($"Loaded {installed.Count} mods " +
+                        $"({installed.Count - recovered.Count} from the library, " +
+                        $"{recovered.Count} from info files on disk)");
             AddItemsToList(installed);
         }
 
@@ -1069,6 +1081,17 @@ namespace WorkshopManager
                 foreach (var requirement in mod.RequiredMods) requiredMods[requirement.Id] = requirement;
                 foreach (var requirement in mod.RequiredDlc) requiredDlc[requirement.Id] = requirement;
             }
+
+            // Refresh what the library already knows, but do not add mods that
+            // were never installed - the library is an inventory, not a wish list.
+            var touched = false;
+            foreach (var mod in evaluated)
+            {
+                if (library.Find(mod.ModId) == null) continue;
+                library.Record(mod, "");
+                touched = true;
+            }
+            if (touched) library.Save();
 
             var missing = requiredMods.Values.Where(r => !known.Contains(r.Id)).ToList();
 
@@ -1619,6 +1642,8 @@ namespace WorkshopManager
                     modItems.ToList(), options, progress, cancellationTokenSource.Token,
                     UpdateListViewItem);
 
+                ArchiveInstalledMods();
+
                 var icon = result.Failed == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning;
                 MessageBox.Show(
                     $"Installation finished.\n\nInstalled: {result.Installed}\n" +
@@ -1647,6 +1672,41 @@ namespace WorkshopManager
                 progressBar.Value = 0;
                 UpdateStatus("Ready");
                 RefreshInstalledStatus();
+            }
+        }
+
+        /// <summary>
+        /// Writes everything that is now on disk into the library. Recording
+        /// is not optional: once an item disappears from the Workshop its
+        /// metadata cannot be fetched again, so whatever is not stored here at
+        /// install time is lost for good.
+        /// </summary>
+        private void ArchiveInstalledMods()
+        {
+            var archived = 0;
+
+            foreach (var mod in modItems)
+            {
+                if (mod.Status is not (WorkshopItemStatus.Installed
+                    or WorkshopItemStatus.UpdateAvailable
+                    or WorkshopItemStatus.Skipped))
+                {
+                    continue;
+                }
+
+                library.Record(mod, InstallationService.ResolveTargetDir(settings, targetDirBox.Text, mod.AppId));
+                archived++;
+            }
+
+            if (archived == 0) return;
+
+            if (library.Save())
+            {
+                logger.Info($"Library now holds {library.Count} mods ({library.FilePath})");
+            }
+            else
+            {
+                logger.Warning("Could not write the mod library file");
             }
         }
 
