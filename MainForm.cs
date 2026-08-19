@@ -47,11 +47,8 @@ namespace WorkshopManager
         private bool browserBusy;
 
         // Install tab
-        private TextBox steamCmdPathBox;
         private TextBox targetDirBox;
         private TextBox urlBox;
-        private Button browseSteamCmdButton;
-        private Button getSteamCmdButton;
         private Button browseTargetButton;
         private Button addUrlButton;
         private Button loadScriptButton;
@@ -68,6 +65,7 @@ namespace WorkshopManager
         private ContextMenuStrip modContextMenu;
         private Button themeButton;
         private Button channelButton;
+        private Button settingsButton;
         private Panel bottomBar;
         private SplitContainer listSplit;
         private Button installButton;
@@ -119,7 +117,6 @@ namespace WorkshopManager
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             settings.LastTargetDirectory = targetDirBox.Text;
-            settings.SteamCmdPath = steamCmdPathBox.Text;
             settings.CleanupAfterInstall = cleanupCheckBox.Checked;
             settings.SkipInstalledMods = skipInstalledCheckBox.Checked;
             settings.Save();
@@ -161,6 +158,10 @@ namespace WorkshopManager
             channelButton.Click += ToggleUpdateChannel;
             bottomBar.Controls.Add(channelButton);
 
+            settingsButton = new Button { Text = "Settings...", Size = new Size(100, 24), TabStop = false };
+            settingsButton.Click += OpenSettings;
+            bottomBar.Controls.Add(settingsButton);
+
             var tips = new ToolTip();
             tips.SetToolTip(channelButton,
                 "Stable: only finished releases.\r\n" +
@@ -183,6 +184,28 @@ namespace WorkshopManager
             var top = (bar.ClientSize.Height - themeButton.Height) / 2;
             themeButton.Location = new Point(bar.ClientSize.Width - themeButton.Width - 12, top);
             channelButton.Location = new Point(themeButton.Left - channelButton.Width - 8, top);
+            settingsButton.Location = new Point(channelButton.Left - settingsButton.Width - 8, top);
+        }
+
+        /// <summary>
+        /// Opens the setup dialog and takes over whatever changed. Everything
+        /// in there is stored in the settings file, so the main window only
+        /// has to re-read it.
+        /// </summary>
+        private void OpenSettings(object sender, EventArgs e)
+        {
+            using var dialog = new SettingsForm(settings, library);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            targetDirBox.Text = settings.LastTargetDirectory;
+            cleanupCheckBox.Checked = settings.CleanupAfterInstall;
+            skipInstalledCheckBox.Checked = settings.SkipInstalledMods;
+
+            Theme.SetMode(settings.Theme.Equals("Light", StringComparison.OrdinalIgnoreCase)
+                ? ThemeMode.Light
+                : ThemeMode.Dark);
+            ApplyTheme();
+            RefreshInstalledStatus();
         }
 
         private async void ToggleUpdateChannel(object sender, EventArgs e)
@@ -342,7 +365,7 @@ namespace WorkshopManager
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 4,
-                RowCount = 8,
+                RowCount = 7,
                 Padding = new Padding(10)
             };
 
@@ -351,7 +374,6 @@ namespace WorkshopManager
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
 
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));   // SteamCMD
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));   // Target dir
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));   // URL add
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // Options
@@ -360,24 +382,8 @@ namespace WorkshopManager
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));   // Install/Cancel
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // Progress
 
-            // Row 0: SteamCMD path
-            steamCmdPathBox = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Margin = new Padding(3),
-                Text = settings.SteamCmdPath
-            };
-            browseSteamCmdButton = new Button { Text = "Browse", Dock = DockStyle.Fill, Margin = new Padding(3) };
-            browseSteamCmdButton.Click += BrowseSteamCmd;
-            getSteamCmdButton = new Button { Text = "Get SteamCMD", Dock = DockStyle.Fill, Margin = new Padding(3) };
-            getSteamCmdButton.Click += DownloadSteamCmd;
-
-            layout.Controls.Add(MakeLabel("SteamCMD:"), 0, 0);
-            layout.Controls.Add(steamCmdPathBox, 1, 0);
-            layout.Controls.Add(browseSteamCmdButton, 2, 0);
-            layout.Controls.Add(getSteamCmdButton, 3, 0);
-
-            // Row 1: Target directory
+            // Row 0: Target directory - SteamCMD and the rest of the setup
+            // live in the settings dialog, so this tab stays about the work
             targetDirBox = new TextBox
             {
                 Dock = DockStyle.Fill,
@@ -387,11 +393,11 @@ namespace WorkshopManager
             browseTargetButton = new Button { Text = "Browse", Dock = DockStyle.Fill, Margin = new Padding(3) };
             browseTargetButton.Click += BrowseTargetDir;
 
-            layout.Controls.Add(MakeLabel("Install folder:"), 0, 1);
-            layout.Controls.Add(targetDirBox, 1, 1);
-            layout.Controls.Add(browseTargetButton, 2, 1);
+            layout.Controls.Add(MakeLabel("Install folder:"), 0, 0);
+            layout.Controls.Add(targetDirBox, 1, 0);
+            layout.Controls.Add(browseTargetButton, 2, 0);
 
-            // Row 2: Add by URL / id + load legacy script
+            // Row 1: Add by URL / id + load legacy script
             urlBox = new HintTextBox
             {
                 Dock = DockStyle.Fill,
@@ -412,12 +418,12 @@ namespace WorkshopManager
             loadScriptButton = new Button { Text = "Load script...", Dock = DockStyle.Fill, Margin = new Padding(3) };
             loadScriptButton.Click += LoadScriptFile;
 
-            layout.Controls.Add(MakeLabel("Add mods:"), 0, 2);
-            layout.Controls.Add(urlBox, 1, 2);
-            layout.Controls.Add(addUrlButton, 2, 2);
-            layout.Controls.Add(loadScriptButton, 3, 2);
+            layout.Controls.Add(MakeLabel("Add mods:"), 0, 1);
+            layout.Controls.Add(urlBox, 1, 1);
+            layout.Controls.Add(addUrlButton, 2, 1);
+            layout.Controls.Add(loadScriptButton, 3, 1);
 
-            // Row 3: Options
+            // Row 2: Options
             var optionsPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -441,10 +447,10 @@ namespace WorkshopManager
             optionsPanel.Controls.Add(cleanupCheckBox);
             optionsPanel.Controls.Add(skipInstalledCheckBox);
 
-            layout.Controls.Add(optionsPanel, 1, 3);
+            layout.Controls.Add(optionsPanel, 1, 2);
             layout.SetColumnSpan(optionsPanel, 3);
 
-            // Row 4: Mod list
+            // Row 3: Mod list
             modListView = new ListView
             {
                 Dock = DockStyle.Fill,
@@ -488,10 +494,10 @@ namespace WorkshopManager
             listSplit.Panel1.Controls.Add(modListView);
             listSplit.Panel2.Controls.Add(detailPanel);
 
-            layout.Controls.Add(listSplit, 0, 4);
+            layout.Controls.Add(listSplit, 0, 3);
             layout.SetColumnSpan(listSplit, 4);
 
-            // Row 5: List management buttons
+            // Row 4: List management buttons
             var listButtonsPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -525,19 +531,19 @@ namespace WorkshopManager
             listButtonsPanel.Controls.Add(clearListButton);
             listButtonsPanel.Controls.Add(checkInstalledButton);
 
-            layout.Controls.Add(listButtonsPanel, 0, 5);
+            layout.Controls.Add(listButtonsPanel, 0, 4);
             layout.SetColumnSpan(listButtonsPanel, 4);
 
-            // Row 6: Install / Cancel
+            // Row 5: Install / Cancel
             installButton = new Button { Text = "Install Mods", Dock = DockStyle.Fill, Margin = new Padding(3) };
             installButton.Click += InstallMods;
             cancelButton = new Button { Text = "Cancel", Dock = DockStyle.Fill, Margin = new Padding(3), Enabled = false };
             cancelButton.Click += CancelInstallation;
 
-            layout.Controls.Add(installButton, 1, 6);
-            layout.Controls.Add(cancelButton, 2, 6);
+            layout.Controls.Add(installButton, 1, 5);
+            layout.Controls.Add(cancelButton, 2, 5);
 
-            // Row 7: Progress + status
+            // Row 6: Progress + status
             statusLabel = new Label
             {
                 Text = "Ready",
@@ -552,9 +558,9 @@ namespace WorkshopManager
                 Style = ProgressBarStyle.Continuous
             };
 
-            layout.Controls.Add(statusLabel, 0, 7);
+            layout.Controls.Add(statusLabel, 0, 6);
             layout.SetColumnSpan(statusLabel, 1);
-            layout.Controls.Add(progressBar, 1, 7);
+            layout.Controls.Add(progressBar, 1, 6);
             layout.SetColumnSpan(progressBar, 3);
 
             installTab.Controls.Add(layout);
@@ -1513,59 +1519,6 @@ namespace WorkshopManager
 
         #region SteamCMD setup
 
-        private void BrowseSteamCmd(object sender, EventArgs e)
-        {
-            using var dialog = new OpenFileDialog
-            {
-                Filter = "SteamCMD|steamcmd.exe|All files (*.*)|*.*",
-                Title = "Select SteamCMD executable"
-            };
-
-            if (dialog.ShowDialog() == DialogResult.OK)
-            {
-                steamCmdPathBox.Text = dialog.FileName;
-            }
-        }
-
-        private async void DownloadSteamCmd(object sender, EventArgs e)
-        {
-            using var dialog = new FolderBrowserDialog
-            {
-                Description = "Select a folder to install SteamCMD into (an empty folder is recommended)"
-            };
-
-            if (dialog.ShowDialog() != DialogResult.OK) return;
-
-            getSteamCmdButton.Enabled = false;
-            try
-            {
-                UpdateStatus("Downloading SteamCMD...");
-                logger.Info("Downloading SteamCMD from the official Valve CDN...");
-
-                string exePath = await SteamCmdDownloader.DownloadAndExtractAsync(
-                    dialog.SelectedPath, CancellationToken.None);
-
-                steamCmdPathBox.Text = exePath;
-                UpdateStatus("SteamCMD installed");
-                logger.Info($"SteamCMD installed to {exePath}");
-
-                MessageBox.Show(
-                    "SteamCMD was downloaded successfully. It will update itself on first use.",
-                    "SteamCMD ready", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                logger.Error($"SteamCMD download failed: {ex.Message}");
-                MessageBox.Show($"SteamCMD download failed: {ex.Message}",
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                UpdateStatus("Ready");
-            }
-            finally
-            {
-                getSteamCmdButton.Enabled = true;
-            }
-        }
-
         private void BrowseTargetDir(object sender, EventArgs e)
         {
             using var dialog = new FolderBrowserDialog
@@ -1586,11 +1539,16 @@ namespace WorkshopManager
 
         private bool ValidateInputs()
         {
-            if (string.IsNullOrWhiteSpace(steamCmdPathBox.Text) || !Settings.ValidateSteamCmdPath(steamCmdPathBox.Text))
+            if (!Settings.ValidateSteamCmdPath(settings.SteamCmdPath))
             {
-                MessageBox.Show(
-                    "Please select a valid steamcmd.exe path (or use 'Get SteamCMD' to download it).",
-                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                // Offer the fix instead of just naming the problem: most people
+                // hitting this have never heard of SteamCMD.
+                var answer = MessageBox.Show(
+                    "SteamCMD is needed to download mods from Steam, and it is not set up yet.\n\n" +
+                    "Open the settings now? It can download and configure SteamCMD for you.",
+                    "SteamCMD missing", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+
+                if (answer == DialogResult.Yes) OpenSettings(this, EventArgs.Empty);
                 return false;
             }
 
@@ -1636,7 +1594,7 @@ namespace WorkshopManager
                 };
 
                 var installationService = new InstallationService(
-                    logger, steamCmdPathBox.Text, targetDirBox.Text, settings);
+                    logger, settings.SteamCmdPath, targetDirBox.Text, settings);
 
                 var result = await installationService.InstallModsAsync(
                     modItems.ToList(), options, progress, cancellationTokenSource.Token,
@@ -1743,11 +1701,8 @@ namespace WorkshopManager
                 return;
             }
 
-            steamCmdPathBox.Enabled = enabled;
             targetDirBox.Enabled = enabled;
             urlBox.Enabled = enabled;
-            browseSteamCmdButton.Enabled = enabled;
-            getSteamCmdButton.Enabled = enabled;
             browseTargetButton.Enabled = enabled;
             addUrlButton.Enabled = enabled;
             loadScriptButton.Enabled = enabled;
@@ -1756,6 +1711,7 @@ namespace WorkshopManager
             checkInstalledButton.Enabled = enabled;
             loadInstalledButton.Enabled = enabled;
             checkRequirementsButton.Enabled = enabled;
+            settingsButton.Enabled = enabled;
             installButton.Enabled = enabled;
             cleanupCheckBox.Enabled = enabled;
             skipInstalledCheckBox.Enabled = enabled;

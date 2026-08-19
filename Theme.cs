@@ -184,6 +184,18 @@ namespace WorkshopManager
                     listView.BorderStyle = BorderStyle.None;
                     break;
 
+                case ComboBox combo:
+                    combo.FlatStyle = FlatStyle.Flat;
+                    combo.BackColor = SurfaceAlt;
+                    combo.ForeColor = Text;
+                    break;
+
+                case NumericUpDown numeric:
+                    numeric.BackColor = SurfaceAlt;
+                    numeric.ForeColor = Text;
+                    numeric.BorderStyle = BorderStyle.FixedSingle;
+                    break;
+
                 case ProgressBar progressBar:
                     progressBar.BackColor = SurfaceAlt;
                     progressBar.ForeColor = Accent;
