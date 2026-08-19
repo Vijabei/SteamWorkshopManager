@@ -152,6 +152,11 @@ namespace WorkshopManager
                         case "title": item.Title = value; break;
                         case "tags": item.Tags = value; break;
                         case "preview image": item.PreviewUrl = value; break;
+                        case "requires mod": AddRequirement(item.RequiredMods, value); break;
+                        case "requires dlc": AddRequirement(item.RequiredDlc, value); break;
+                        case "requirements checked":
+                            item.RequirementsChecked = value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+                            break;
                         case "time updated":
                             if (long.TryParse(value, NumberStyles.Integer,
                                 CultureInfo.InvariantCulture, out var updated))
@@ -173,6 +178,22 @@ namespace WorkshopManager
             {
                 return null;
             }
+        }
+
+        /// <summary>Parses an "id|name" requirement line from an info file.</summary>
+        private static void AddRequirement(List<ModRequirement> target, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+
+            var parts = value.Split('|', 2);
+            var id = parts[0].Trim();
+            if (id.Length == 0) return;
+
+            target.Add(new ModRequirement
+            {
+                Id = id,
+                Name = parts.Length > 1 ? parts[1].Trim() : ""
+            });
         }
 
         /// <summary>
@@ -461,6 +482,12 @@ namespace WorkshopManager
                 // The description is archived here on purpose: once an item is
                 // removed from the Workshop its metadata can no longer be
                 // fetched, so it has to be captured at install time.
+                // One line per requirement keeps names containing separators
+                // harmless and makes the file readable by hand.
+                string requirementLines =
+                    string.Concat(mod.RequiredMods.Select(r => $"Requires Mod: {r.Id}|{r.Name}\n")) +
+                    string.Concat(mod.RequiredDlc.Select(r => $"Requires DLC: {r.Id}|{r.Name}\n"));
+
                 await File.WriteAllTextAsync(
                     infoFile,
                     "# Mod Info\n" +
@@ -470,6 +497,8 @@ namespace WorkshopManager
                     $"Time Updated: {mod.TimeUpdated}\n" +
                     $"Tags: {mod.Tags}\n" +
                     $"Preview Image: {mod.PreviewUrl}\n" +
+                    $"Requirements Checked: {(mod.RequirementsChecked ? "yes" : "no")}\n" +
+                    requirementLines +
                     $"Installation Date: {DateTime.Now}\n" +
                     "\n# Description\n" +
                     mod.Description,

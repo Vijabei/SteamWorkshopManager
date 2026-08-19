@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace WorkshopManager
 {
@@ -45,6 +46,18 @@ namespace WorkshopManager
         /// either banned by Valve or deleted by its author.
         /// </summary>
         public bool Banned { get; set; }
+
+        /// <summary>Workshop items this mod declares as required.</summary>
+        public List<ModRequirement> RequiredMods { get; set; } = new();
+
+        /// <summary>Steam DLC this mod declares as required.</summary>
+        public List<ModRequirement> RequiredDlc { get; set; } = new();
+
+        /// <summary>
+        /// True once the requirements were looked up, so an empty list can be
+        /// told apart from "not checked yet".
+        /// </summary>
+        public bool RequirementsChecked { get; set; }
 
         public WorkshopItemStatus Status { get; set; } = WorkshopItemStatus.Pending;
 

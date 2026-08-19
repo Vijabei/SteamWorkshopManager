@@ -58,6 +58,7 @@ namespace WorkshopManager
         private Button clearListButton;
         private Button checkInstalledButton;
         private Button loadInstalledButton;
+        private Button checkRequirementsButton;
         private CheckBox cleanupCheckBox;
         private CheckBox skipInstalledCheckBox;
         private TextBox searchBox;
@@ -384,8 +385,11 @@ namespace WorkshopManager
             checkInstalledButton.Click += (s, e) => RefreshInstalledStatus();
             loadInstalledButton = new Button { Text = "Load installed library", AutoSize = true, Margin = new Padding(3) };
             loadInstalledButton.Click += LoadInstalledLibrary;
+            checkRequirementsButton = new Button { Text = "Check requirements", AutoSize = true, Margin = new Padding(3) };
+            checkRequirementsButton.Click += CheckRequirements;
 
             listButtonsPanel.Controls.Add(searchBox);
+            listButtonsPanel.Controls.Add(checkRequirementsButton);
             listButtonsPanel.Controls.Add(loadInstalledButton);
             listButtonsPanel.Controls.Add(removeSelectedButton);
             listButtonsPanel.Controls.Add(clearListButton);
@@ -812,6 +816,172 @@ namespace WorkshopManager
             AddItemsToList(installed);
         }
 
+        /// <summary>
+        /// Looks up the Required Items and Required DLC each mod declares and
+        /// reports which of them are missing from the list.
+        ///
+        /// Steam publishes this only on the item page, so it costs one request
+        /// per mod. The check therefore runs on the current selection when
+        /// there is one, and asks before working through a long list.
+        /// </summary>
+        private async void CheckRequirements(object sender, EventArgs e)
+        {
+            var targets = modListView.SelectedItems.Count > 0
+                ? modListView.SelectedItems.Cast<ListViewItem>()
+                    .Select(lvi => lvi.Tag as WorkshopItem).Where(m => m != null).ToList()
+                : modItems.ToList();
+
+            if (targets.Count == 0)
+            {
+                MessageBox.Show("The mod list is empty.", "Nothing to check",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var pending = targets.Where(m => !m.RequirementsChecked).ToList();
+
+            // Roughly a second per mod: one page request plus the delay we
+            // keep between them to stay friendly to Steam.
+            if (pending.Count > 20)
+            {
+                var minutes = Math.Max(1, (int)Math.Round(pending.Count * 0.9 / 60.0));
+                if (MessageBox.Show(
+                    "Steam publishes requirements only on each mod's own page, so this needs " +
+                    $"{pending.Count} requests and takes about {minutes} minute(s).\n\n" +
+                    "Tip: select a few mods first to check only those.\n\nStart now?",
+                    "Check requirements", MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question) != DialogResult.Yes)
+                {
+                    return;
+                }
+            }
+
+            int failed = 0;
+
+            if (pending.Count > 0)
+            {
+                SetControlsEnabled(false);
+                cancelButton.Enabled = true;
+                cancellationTokenSource = new CancellationTokenSource();
+                var token = cancellationTokenSource.Token;
+
+                try
+                {
+                    var service = new RequirementsService();
+
+                    for (int i = 0; i < pending.Count; i++)
+                    {
+                        token.ThrowIfCancellationRequested();
+
+                        var mod = pending[i];
+                        UpdateStatus($"Checking requirements {i + 1} of {pending.Count}: {mod.Title}");
+                        progressBar.Value = (int)((i + 1) * 100.0 / pending.Count);
+
+                        try
+                        {
+                            var requirements = await service.FetchAsync(mod.ModId, token);
+                            mod.RequiredMods = requirements.RequiredMods;
+                            mod.RequiredDlc = requirements.RequiredDlc;
+                            mod.RequirementsChecked = true;
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            failed++;
+                            logger.Warning($"Could not read requirements for {mod.ModId}: {ex.Message}");
+                        }
+
+                        if (i < pending.Count - 1) await Task.Delay(500, token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    logger.Warning("Requirement check cancelled");
+                }
+                finally
+                {
+                    SetControlsEnabled(true);
+                    cancelButton.Enabled = false;
+                    progressBar.Value = 0;
+                    UpdateStatus("Ready");
+                }
+            }
+
+            ReportRequirements(targets, failed);
+        }
+
+        private void ReportRequirements(List<WorkshopItem> targets, int failed)
+        {
+            var evaluated = targets.Where(m => m.RequirementsChecked).ToList();
+            if (evaluated.Count == 0)
+            {
+                UpdateStatus("Ready");
+                return;
+            }
+
+            var known = new HashSet<string>(modItems.Select(m => m.ModId));
+            var requiredMods = new Dictionary<string, ModRequirement>();
+            var requiredDlc = new Dictionary<string, ModRequirement>();
+
+            foreach (var mod in evaluated)
+            {
+                foreach (var requirement in mod.RequiredMods) requiredMods[requirement.Id] = requirement;
+                foreach (var requirement in mod.RequiredDlc) requiredDlc[requirement.Id] = requirement;
+            }
+
+            var missing = requiredMods.Values.Where(r => !known.Contains(r.Id)).ToList();
+
+            var message = $"Checked {evaluated.Count} mod(s).\n\n" +
+                $"Declared required mods: {requiredMods.Count}\n" +
+                $"Missing from your list: {missing.Count}\n" +
+                $"Required DLC: {requiredDlc.Count}";
+
+            if (failed > 0) message += $"\nCould not be read: {failed}";
+
+            if (requiredDlc.Count > 0)
+            {
+                message += "\n\nRequired DLC (must be owned on Steam):\n" +
+                    string.Join("\n", requiredDlc.Values.Take(10).Select(r => $"  - {r}"));
+            }
+
+            if (missing.Count > 0)
+            {
+                message += "\n\nMissing mods:\n" +
+                    string.Join("\n", missing.Take(15).Select(r => $"  - {r}"));
+                if (missing.Count > 15) message += $"\n  ... and {missing.Count - 15} more";
+
+                message += "\n\nAdd the missing mods to the list?";
+
+                if (MessageBox.Show(message, "Requirements", MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Information) == DialogResult.Yes)
+                {
+                    _ = AddMissingRequirementsAsync(missing.Select(r => r.Id).ToList());
+                }
+                return;
+            }
+
+            MessageBox.Show(message, "Requirements", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private async Task AddMissingRequirementsAsync(List<string> ids)
+        {
+            try
+            {
+                UpdateStatus($"Fetching details for {ids.Count} required mods...");
+                var items = await collectionService.GetDetailsAsync(
+                    ids, CancellationToken.None, new Progress<string>(UpdateStatus));
+                AddItemsToList(items);
+            }
+            catch (Exception ex)
+            {
+                logger.Error($"Could not add the required mods: {ex.Message}");
+                UpdateStatus("Ready");
+            }
+        }
+
         private void LoadScriptFile(object sender, EventArgs e)
         {
             using var dialog = new OpenFileDialog
@@ -1218,7 +1388,7 @@ namespace WorkshopManager
         private void CancelInstallation(object sender, EventArgs e)
         {
             if (MessageBox.Show(
-                "Are you sure you want to cancel the installation?",
+                "Are you sure you want to cancel the running operation?",
                 "Confirm Cancellation",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question) == DialogResult.Yes)
@@ -1260,6 +1430,7 @@ namespace WorkshopManager
             clearListButton.Enabled = enabled;
             checkInstalledButton.Enabled = enabled;
             loadInstalledButton.Enabled = enabled;
+            checkRequirementsButton.Enabled = enabled;
             installButton.Enabled = enabled;
             cleanupCheckBox.Enabled = enabled;
             skipInstalledCheckBox.Enabled = enabled;
