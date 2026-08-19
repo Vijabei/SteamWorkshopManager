@@ -65,6 +65,7 @@ namespace WorkshopManager
         private ListView modListView;
         private ModDetailPanel detailPanel;
         private Button themeButton;
+        private Button channelButton;
         private Panel bottomBar;
         private SplitContainer listSplit;
         private Button installButton;
@@ -153,6 +154,15 @@ namespace WorkshopManager
             themeButton = new Button { Size = new Size(100, 24), TabStop = false };
             themeButton.Click += ToggleTheme;
             bottomBar.Controls.Add(themeButton);
+
+            channelButton = new Button { Size = new Size(150, 24), TabStop = false };
+            channelButton.Click += ToggleUpdateChannel;
+            bottomBar.Controls.Add(channelButton);
+
+            var tips = new ToolTip();
+            tips.SetToolTip(channelButton,
+                "Stable: only finished releases.\r\n" +
+                "Beta: pre-release builds as well - newer, but less tested.");
             bottomBar.Resize += (s, e) => PositionThemeButton(bottomBar);
             bottomBar.Paint += (s, e) =>
             {
@@ -168,9 +178,28 @@ namespace WorkshopManager
 
         private void PositionThemeButton(Panel bar)
         {
-            themeButton.Location = new Point(
-                bar.ClientSize.Width - themeButton.Width - 12,
-                (bar.ClientSize.Height - themeButton.Height) / 2);
+            var top = (bar.ClientSize.Height - themeButton.Height) / 2;
+            themeButton.Location = new Point(bar.ClientSize.Width - themeButton.Width - 12, top);
+            channelButton.Location = new Point(themeButton.Left - channelButton.Width - 8, top);
+        }
+
+        private async void ToggleUpdateChannel(object sender, EventArgs e)
+        {
+            settings.UpdateChannel = OnBetaChannel ? "Stable" : "Beta";
+            UpdateChannelButtonText();
+            settings.Save();
+
+            // Switching to beta should show what is waiting there right away
+            if (OnBetaChannel) await CheckForUpdatesAsync();
+        }
+
+        private bool OnBetaChannel =>
+            settings.UpdateChannel.Equals("Beta", StringComparison.OrdinalIgnoreCase);
+
+        private void UpdateChannelButtonText()
+        {
+            channelButton.Text = OnBetaChannel ? "Updates: Beta" : "Updates: Stable";
+            channelButton.ForeColor = OnBetaChannel ? Theme.Warning : Theme.Text;
         }
 
         private void ToggleTheme(object sender, EventArgs e)
@@ -196,6 +225,7 @@ namespace WorkshopManager
             bottomBar.BackColor = Theme.Surface;
 
             themeButton.Text = Theme.Mode == ThemeMode.Dark ? "Light mode" : "Dark mode";
+            UpdateChannelButtonText();
 
             // Row colours are baked into the items, so they have to be redone
             foreach (var item in modItems) UpdateListViewItem(item);
@@ -554,7 +584,7 @@ namespace WorkshopManager
             try
             {
                 var updateService = new UpdateService();
-                var update = await updateService.CheckForUpdateAsync(CancellationToken.None);
+                var update = await updateService.CheckForUpdateAsync(OnBetaChannel, CancellationToken.None);
 
                 if (!update.UpdateAvailable)
                 {
@@ -568,8 +598,9 @@ namespace WorkshopManager
                     return;
                 }
 
+                var kind = update.IsPreRelease ? "beta version" : "version";
                 var choice = MessageBox.Show(
-                    $"A new version is available: {update.LatestVersion} " +
+                    $"A new {kind} is available: {update.LatestVersion} " +
                     $"(installed: {update.CurrentVersion}).\n\n" +
                     "Install now? The app will restart automatically.\n\n" +
                     "Yes = update now\nNo = remind me next time\nCancel = skip this version",

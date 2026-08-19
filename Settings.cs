@@ -48,6 +48,12 @@ namespace WorkshopManager
         /// <summary>Check GitHub for a newer release on startup.</summary>
         public bool CheckForUpdates { get; set; } = true;
 
+        /// <summary>
+        /// "Stable" or "Beta". On the beta channel pre-releases are offered
+        /// too, so testers get new builds without a manual download.
+        /// </summary>
+        public string UpdateChannel { get; set; } = "Stable";
+
         /// <summary>Version the user chose to skip; empty = none.</summary>
         public string SkippedUpdateVersion { get; set; } = "";
 
