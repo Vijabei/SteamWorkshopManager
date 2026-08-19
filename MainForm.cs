@@ -299,11 +299,12 @@ namespace WorkshopManager
             layout.Controls.Add(browseTargetButton, 2, 1);
 
             // Row 2: Add by URL / id + load legacy script
-            urlBox = new TextBox
+            urlBox = new HintTextBox
             {
                 Dock = DockStyle.Fill,
                 Margin = new Padding(3),
-                PlaceholderText = "Workshop collection or mod URL / id, e.g. https://steamcommunity.com/sharedfiles/filedetails/?id=..."
+                Hint = "Workshop collection or mod URL / id, e.g. https://steamcommunity.com/sharedfiles/filedetails/?id=...",
+                HintColor = Theme.TextDim
             };
             urlBox.KeyDown += async (s, e) =>
             {
@@ -394,11 +395,12 @@ namespace WorkshopManager
                 FlowDirection = FlowDirection.LeftToRight,
                 Margin = new Padding(0)
             };
-            searchBox = new TextBox
+            searchBox = new HintTextBox
             {
                 Width = 250,
                 Margin = new Padding(3, 4, 15, 3),
-                PlaceholderText = "Filter: title, id, tag or description..."
+                Hint = "Filter: title, id, tag or description...",
+                HintColor = Theme.TextDim
             };
             searchBox.TextChanged += (s, e) => RebuildModListView();
 
@@ -1271,16 +1273,18 @@ namespace WorkshopManager
 
         private static void ApplyRowAppearance(WorkshopItem item, ListViewItem lvi)
         {
+            // Theme colours throughout: the named System.Drawing colours are
+            // light-theme values and lose their contrast on a dark surface.
             lvi.ForeColor = item.Status switch
             {
                 // An installed copy of a removed item still works, but the
                 // user should see that it can no longer be re-downloaded.
-                WorkshopItemStatus.Installed => item.Banned ? Color.DarkOrange : Color.Green,
-                WorkshopItemStatus.UpdateAvailable => Color.DarkOrange,
-                WorkshopItemStatus.Failed => Color.Red,
-                WorkshopItemStatus.Removed => Color.Firebrick,
-                WorkshopItemStatus.Skipped => Color.Gray,
-                _ => item.Banned ? Color.Firebrick : SystemColors.WindowText
+                WorkshopItemStatus.Installed => item.Banned ? Theme.Warning : Theme.Success,
+                WorkshopItemStatus.UpdateAvailable => Theme.Warning,
+                WorkshopItemStatus.Failed => Theme.Error,
+                WorkshopItemStatus.Removed => Theme.Error,
+                WorkshopItemStatus.Skipped => Theme.Muted,
+                _ => item.Banned ? Theme.Error : Theme.Text
             };
         }
 

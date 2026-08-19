@@ -159,7 +159,8 @@ namespace WorkshopManager
                 WorkshopItemStatus.Failed => Theme.Error,
                 WorkshopItemStatus.Removed => Theme.Error,
                 WorkshopItemStatus.Skipped => Theme.Muted,
-                _ => Theme.Accent
+                // Neutral: the accent is green now and would read as "done"
+                _ => Theme.TextDim
             };
 
             requirementsLabel.Text = DescribeRequirements(item);

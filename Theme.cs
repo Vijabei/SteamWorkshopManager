@@ -12,25 +12,27 @@ namespace WorkshopManager
     /// </summary>
     public static class Theme
     {
-        // Surfaces
-        public static readonly Color Background = Color.FromArgb(27, 40, 56);     // #1B2838
-        public static readonly Color Surface = Color.FromArgb(36, 52, 71);        // #243447
-        public static readonly Color SurfaceAlt = Color.FromArgb(30, 45, 62);     // #1E2D3E
-        public static readonly Color SurfaceHover = Color.FromArgb(46, 66, 90);
-        public static readonly Color Border = Color.FromArgb(61, 75, 94);         // #3D4B5E
+        // Surfaces - neutral dark greys so the brand green stays the only
+        // strong colour. Mirrors the dark theme of the softknight.de website.
+        public static readonly Color Background = Color.FromArgb(24, 24, 27);     // #18181B
+        public static readonly Color Surface = Color.FromArgb(35, 35, 39);        // #232327
+        public static readonly Color SurfaceAlt = Color.FromArgb(30, 30, 34);     // #1E1E22
+        public static readonly Color SurfaceHover = Color.FromArgb(46, 46, 52);   // #2E2E34
+        public static readonly Color Border = Color.FromArgb(63, 63, 70);         // #3F3F46
 
-        // Text
-        public static readonly Color Text = Color.FromArgb(199, 213, 224);        // #C7D5E0
-        public static readonly Color TextDim = Color.FromArgb(143, 152, 160);     // #8F98A0
-        public static readonly Color TextOnAccent = Color.FromArgb(20, 30, 42);
+        // Text - deliberately high contrast, and never taken from
+        // SystemColors, which do not follow the system's dark mode.
+        public static readonly Color Text = Color.FromArgb(228, 228, 231);        // #E4E4E7
+        public static readonly Color TextDim = Color.FromArgb(161, 161, 170);     // #A1A1AA
+        public static readonly Color TextOnAccent = Color.FromArgb(16, 32, 18);
 
-        // Accent and states
-        public static readonly Color Accent = Color.FromArgb(102, 192, 244);      // #66C0F4
-        public static readonly Color AccentHover = Color.FromArgb(142, 209, 255);
-        public static readonly Color Success = Color.FromArgb(164, 208, 7);       // #A4D007
-        public static readonly Color Warning = Color.FromArgb(232, 197, 107);
-        public static readonly Color Error = Color.FromArgb(255, 123, 123);
-        public static readonly Color Muted = Color.FromArgb(120, 132, 145);
+        // Accent and states - the SoftKnight green
+        public static readonly Color Accent = Color.FromArgb(92, 191, 96);        // #5CBF60
+        public static readonly Color AccentHover = Color.FromArgb(111, 204, 115); // #6FCC73
+        public static readonly Color Success = Color.FromArgb(52, 211, 153);      // #34D399
+        public static readonly Color Warning = Color.FromArgb(232, 197, 107);     // #E8C56B
+        public static readonly Color Error = Color.FromArgb(248, 113, 113);       // #F87171
+        public static readonly Color Muted = Color.FromArgb(113, 113, 122);       // #71717A
 
         public static readonly Font BaseFont = new("Segoe UI", 9F);
         public static readonly Font BoldFont = new("Segoe UI", 9F, FontStyle.Bold);
@@ -303,7 +305,7 @@ namespace WorkshopManager
                 }
 
                 var text = e.ColumnIndex == 0 ? e.Item.Text : e.SubItem.Text;
-                var color = e.Item.ForeColor == SystemColors.WindowText ? Text : e.Item.ForeColor;
+                var color = e.Item.ForeColor.IsEmpty ? Text : e.Item.ForeColor;
 
                 var bounds = Rectangle.Inflate(e.Bounds, -8, 0);
                 if (selected && e.ColumnIndex == 0) bounds.X += 3;
