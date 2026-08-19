@@ -9,7 +9,10 @@ namespace WorkshopManager
         Installed,
         UpdateAvailable,
         Skipped,
-        Failed
+        Failed,
+
+        /// <summary>No longer available on the Workshop (banned/removed).</summary>
+        Removed
     }
 
     /// <summary>
@@ -37,21 +40,51 @@ namespace WorkshopManager
         /// <summary>URL of the preview image, empty if unknown.</summary>
         public string PreviewUrl { get; set; } = "";
 
-        /// <summary>True if the item has been removed from the Workshop.</summary>
+        /// <summary>
+        /// True if the item is no longer obtainable from the Workshop -
+        /// either banned by Valve or deleted by its author.
+        /// </summary>
         public bool Banned { get; set; }
 
         public WorkshopItemStatus Status { get; set; } = WorkshopItemStatus.Pending;
 
-        public string StatusText => Status switch
+        public string StatusText
         {
-            WorkshopItemStatus.Pending => "Pending",
-            WorkshopItemStatus.Downloading => "Downloading...",
-            WorkshopItemStatus.Installed => "Installed",
-            WorkshopItemStatus.UpdateAvailable => "Update available",
-            WorkshopItemStatus.Skipped => "Skipped (installed)",
-            WorkshopItemStatus.Failed => "Failed",
-            _ => Status.ToString()
-        };
+            get
+            {
+                var text = Status switch
+                {
+                    WorkshopItemStatus.Pending => "Pending",
+                    WorkshopItemStatus.Downloading => "Downloading...",
+                    WorkshopItemStatus.Installed => "Installed",
+                    WorkshopItemStatus.UpdateAvailable => "Update available",
+                    WorkshopItemStatus.Skipped => "Skipped (installed)",
+                    WorkshopItemStatus.Failed => "Failed",
+                    WorkshopItemStatus.Removed => "Removed from Steam",
+                    _ => Status.ToString()
+                };
+
+                // A local copy of an item that is gone from the Workshop is
+                // exactly the archival case this metadata exists for.
+                return Banned && Status != WorkshopItemStatus.Removed
+                    ? $"{text} - gone from Steam"
+                    : text;
+            }
+        }
+
+        /// <summary>True if the given text occurs in any searchable field.</summary>
+        public bool Matches(string needle)
+        {
+            if (string.IsNullOrWhiteSpace(needle)) return true;
+
+            return Contains(Title, needle)
+                || Contains(ModId, needle)
+                || Contains(Tags, needle)
+                || Contains(Description, needle);
+
+            static bool Contains(string haystack, string value) =>
+                haystack != null && haystack.Contains(value, StringComparison.OrdinalIgnoreCase);
+        }
 
         public string FileSizeText
         {

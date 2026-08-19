@@ -59,6 +59,7 @@ namespace WorkshopManager
         private Button checkInstalledButton;
         private CheckBox cleanupCheckBox;
         private CheckBox skipInstalledCheckBox;
+        private TextBox searchBox;
         private ListView modListView;
         private Button installButton;
         private Button cancelButton;
@@ -366,6 +367,14 @@ namespace WorkshopManager
                 FlowDirection = FlowDirection.LeftToRight,
                 Margin = new Padding(0)
             };
+            searchBox = new TextBox
+            {
+                Width = 250,
+                Margin = new Padding(3, 4, 15, 3),
+                PlaceholderText = "Filter: title, id, tag or description..."
+            };
+            searchBox.TextChanged += (s, e) => RebuildModListView();
+
             removeSelectedButton = new Button { Text = "Remove selected", AutoSize = true, Margin = new Padding(3) };
             removeSelectedButton.Click += RemoveSelectedMods;
             clearListButton = new Button { Text = "Clear list", AutoSize = true, Margin = new Padding(3) };
@@ -373,6 +382,7 @@ namespace WorkshopManager
             checkInstalledButton = new Button { Text = "Check installed / updates", AutoSize = true, Margin = new Padding(3) };
             checkInstalledButton.Click += (s, e) => RefreshInstalledStatus();
 
+            listButtonsPanel.Controls.Add(searchBox);
             listButtonsPanel.Controls.Add(removeSelectedButton);
             listButtonsPanel.Controls.Add(clearListButton);
             listButtonsPanel.Controls.Add(checkInstalledButton);
@@ -843,18 +853,55 @@ namespace WorkshopManager
             int added = 0, duplicates = 0;
             var existingIds = new HashSet<string>(modItems.Select(m => m.ModId));
 
+            foreach (var item in items)
+            {
+                if (!existingIds.Add(item.ModId))
+                {
+                    duplicates++;
+                    continue;
+                }
+
+                modItems.Add(item);
+                added++;
+            }
+
+            RebuildModListView();
+            RefreshInstalledStatus();
+
+            UpdateStatus(duplicates > 0
+                ? $"Added {added} mods ({duplicates} already in list)"
+                : $"Added {added} mods");
+
+            if (added > 0)
+            {
+                tabControl.SelectedTab = installTab;
+            }
+        }
+
+        /// <summary>
+        /// Repopulates the list view from <see cref="modItems"/>, honouring the
+        /// current filter text. Filtering only affects what is displayed -
+        /// installing always works on the complete list.
+        /// </summary>
+        private void RebuildModListView()
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(RebuildModListView));
+                return;
+            }
+
+            var filter = searchBox?.Text ?? "";
+
             modListView.BeginUpdate();
             try
             {
-                foreach (var item in items)
-                {
-                    if (!existingIds.Add(item.ModId))
-                    {
-                        duplicates++;
-                        continue;
-                    }
+                modListView.Items.Clear();
+                listViewItems.Clear();
 
-                    modItems.Add(item);
+                foreach (var item in modItems)
+                {
+                    if (!item.Matches(filter)) continue;
 
                     var lvi = new ListViewItem(item.Title) { Tag = item };
                     lvi.SubItems.Add(item.ModId);
@@ -865,7 +912,7 @@ namespace WorkshopManager
 
                     modListView.Items.Add(lvi);
                     listViewItems[item] = lvi;
-                    added++;
+                    ApplyRowAppearance(item, lvi);
                 }
             }
             finally
@@ -873,15 +920,9 @@ namespace WorkshopManager
                 modListView.EndUpdate();
             }
 
-            RefreshInstalledStatus();
-
-            UpdateStatus(duplicates > 0
-                ? $"Added {added} mods ({duplicates} already in list)"
-                : $"Added {added} mods");
-
-            if (added > 0)
+            if (!string.IsNullOrWhiteSpace(filter))
             {
-                tabControl.SelectedTab = installTab;
+                UpdateStatus($"Showing {modListView.Items.Count} of {modItems.Count} mods");
             }
         }
 
@@ -923,9 +964,16 @@ namespace WorkshopManager
                         ? WorkshopItemStatus.UpdateAvailable
                         : WorkshopItemStatus.Installed;
                 }
+                else if (item.Banned)
+                {
+                    // Not installed and gone from the Workshop - there is no
+                    // way to download it any more.
+                    item.Status = WorkshopItemStatus.Removed;
+                }
                 else if (item.Status is WorkshopItemStatus.Installed
                     or WorkshopItemStatus.UpdateAvailable
-                    or WorkshopItemStatus.Skipped)
+                    or WorkshopItemStatus.Skipped
+                    or WorkshopItemStatus.Removed)
                 {
                     item.Status = WorkshopItemStatus.Pending;
                 }
@@ -951,13 +999,21 @@ namespace WorkshopManager
             lvi.SubItems[4].Text = item.TimeUpdatedText;
             lvi.SubItems[5].Text = item.StatusText;
 
+            ApplyRowAppearance(item, lvi);
+        }
+
+        private static void ApplyRowAppearance(WorkshopItem item, ListViewItem lvi)
+        {
             lvi.ForeColor = item.Status switch
             {
-                WorkshopItemStatus.Installed => Color.Green,
+                // An installed copy of a removed item still works, but the
+                // user should see that it can no longer be re-downloaded.
+                WorkshopItemStatus.Installed => item.Banned ? Color.DarkOrange : Color.Green,
                 WorkshopItemStatus.UpdateAvailable => Color.DarkOrange,
                 WorkshopItemStatus.Failed => Color.Red,
+                WorkshopItemStatus.Removed => Color.Firebrick,
                 WorkshopItemStatus.Skipped => Color.Gray,
-                _ => SystemColors.WindowText
+                _ => item.Banned ? Color.Firebrick : SystemColors.WindowText
             };
         }
 
