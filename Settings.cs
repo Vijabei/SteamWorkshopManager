@@ -40,6 +40,10 @@ namespace WorkshopManager
         // Internal browser
         public string BrowserHomeUrl { get; set; } = "https://steamcommunity.com/workshop/";
 
+        /// <summary>"Dark" or "Light". Chosen in the app, independent of the
+        /// system's own dark mode setting.</summary>
+        public string Theme { get; set; } = "Dark";
+
         // Auto-update
         /// <summary>Check GitHub for a newer release on startup.</summary>
         public bool CheckForUpdates { get; set; } = true;

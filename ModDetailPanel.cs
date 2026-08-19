@@ -133,7 +133,34 @@ namespace WorkshopManager
             Controls.Add(emptyHint);
             emptyHint.BringToFront();
 
+            RestyleFromTheme();
             ShowItem(null);
+        }
+
+        /// <summary>
+        /// Re-reads every colour from the theme. Called after the user
+        /// switches between light and dark; Theme.Apply deliberately skips
+        /// this panel because it manages per-state colours itself.
+        /// </summary>
+        public void RestyleFromTheme()
+        {
+            BackColor = Theme.Surface;
+            preview.BackColor = Theme.SurfaceAlt;
+            titleLabel.ForeColor = Theme.Text;
+            metaLabel.ForeColor = Theme.TextDim;
+            requirementsLabel.ForeColor = Theme.TextDim;
+            emptyHint.ForeColor = Theme.TextDim;
+
+            descriptionBox.BackColor = Theme.SurfaceAlt;
+            descriptionBox.ForeColor = Theme.Text;
+
+            openOnSteamButton.BackColor = Theme.SurfaceAlt;
+            openOnSteamButton.ForeColor = Theme.Accent;
+            openOnSteamButton.FlatAppearance.BorderColor = Theme.Border;
+            openOnSteamButton.FlatAppearance.MouseOverBackColor = Theme.SurfaceHover;
+
+            // The status colour depends on the item, so let it redo itself
+            if (current != null) ShowItem(current);
         }
 
         /// <summary>Displays a mod, or the placeholder when null.</summary>

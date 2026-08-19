@@ -1,43 +1,108 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WorkshopManager
 {
+    public enum ThemeMode
+    {
+        Dark,
+        Light
+    }
+
     /// <summary>
-    /// Central dark colour palette and control styling, deliberately kept in
-    /// one place so the look can be changed without touching the forms.
-    /// The palette mirrors the Steam theme of the softknight.de website.
+    /// Central palette and control styling, kept in one place so the look can
+    /// be changed without touching the forms. Both palettes mirror the themes
+    /// of the softknight.de website and are chosen in the app - the system's
+    /// own dark mode setting is deliberately not consulted, so the app looks
+    /// the same everywhere.
+    ///
+    /// No colour here comes from SystemColors: those are fixed to the light
+    /// theme and would lose all contrast on a dark surface.
     /// </summary>
     public static class Theme
     {
-        // Surfaces - neutral dark greys so the brand green stays the only
-        // strong colour. Mirrors the dark theme of the softknight.de website.
-        public static readonly Color Background = Color.FromArgb(24, 24, 27);     // #18181B
-        public static readonly Color Surface = Color.FromArgb(35, 35, 39);        // #232327
-        public static readonly Color SurfaceAlt = Color.FromArgb(30, 30, 34);     // #1E1E22
-        public static readonly Color SurfaceHover = Color.FromArgb(46, 46, 52);   // #2E2E34
-        public static readonly Color Border = Color.FromArgb(63, 63, 70);         // #3F3F46
+        public static ThemeMode Mode { get; private set; } = ThemeMode.Dark;
 
-        // Text - deliberately high contrast, and never taken from
-        // SystemColors, which do not follow the system's dark mode.
-        public static readonly Color Text = Color.FromArgb(228, 228, 231);        // #E4E4E7
-        public static readonly Color TextDim = Color.FromArgb(161, 161, 170);     // #A1A1AA
-        public static readonly Color TextOnAccent = Color.FromArgb(16, 32, 18);
+        // Surfaces
+        public static Color Background { get; private set; }
+        public static Color Surface { get; private set; }
+        public static Color SurfaceAlt { get; private set; }
+        public static Color SurfaceHover { get; private set; }
+        public static Color Border { get; private set; }
 
-        // Accent and states - the SoftKnight green
-        public static readonly Color Accent = Color.FromArgb(92, 191, 96);        // #5CBF60
-        public static readonly Color AccentHover = Color.FromArgb(111, 204, 115); // #6FCC73
-        public static readonly Color Success = Color.FromArgb(52, 211, 153);      // #34D399
-        public static readonly Color Warning = Color.FromArgb(232, 197, 107);     // #E8C56B
-        public static readonly Color Error = Color.FromArgb(248, 113, 113);       // #F87171
-        public static readonly Color Muted = Color.FromArgb(113, 113, 122);       // #71717A
+        // Text
+        public static Color Text { get; private set; }
+        public static Color TextDim { get; private set; }
+        public static Color TextOnAccent { get; private set; }
+
+        // Accent and states - the SoftKnight green in both modes
+        public static Color Accent { get; private set; }
+        public static Color AccentHover { get; private set; }
+        public static Color Success { get; private set; }
+        public static Color Warning { get; private set; }
+        public static Color Error { get; private set; }
+        public static Color Muted { get; private set; }
 
         public static readonly Font BaseFont = new("Segoe UI", 9F);
         public static readonly Font BoldFont = new("Segoe UI", 9F, FontStyle.Bold);
         public static readonly Font TitleFont = new("Segoe UI Semibold", 12F);
         public static readonly Font SmallFont = new("Segoe UI", 8.25F);
+
+        /// <summary>
+        /// Controls whose owner-draw handlers are already attached. Applying a
+        /// theme twice must not subscribe the handlers twice.
+        /// </summary>
+        private static readonly HashSet<Control> hooked = new();
+
+        static Theme() => SetMode(ThemeMode.Dark);
+
+        public static void SetMode(ThemeMode mode)
+        {
+            Mode = mode;
+
+            if (mode == ThemeMode.Dark)
+            {
+                // Neutral dark greys so the brand green stays the only strong colour
+                Background = Color.FromArgb(24, 24, 27);      // #18181B
+                Surface = Color.FromArgb(35, 35, 39);         // #232327
+                SurfaceAlt = Color.FromArgb(30, 30, 34);      // #1E1E22
+                SurfaceHover = Color.FromArgb(46, 46, 52);    // #2E2E34
+                Border = Color.FromArgb(63, 63, 70);          // #3F3F46
+
+                Text = Color.FromArgb(228, 228, 231);         // #E4E4E7
+                TextDim = Color.FromArgb(161, 161, 170);      // #A1A1AA
+                TextOnAccent = Color.FromArgb(16, 32, 18);
+
+                Accent = Color.FromArgb(92, 191, 96);         // #5CBF60
+                AccentHover = Color.FromArgb(111, 204, 115);  // #6FCC73
+                Success = Color.FromArgb(52, 211, 153);       // #34D399
+                Warning = Color.FromArgb(232, 197, 107);      // #E8C56B
+                Error = Color.FromArgb(248, 113, 113);        // #F87171
+                Muted = Color.FromArgb(140, 140, 150);
+            }
+            else
+            {
+                Background = Color.FromArgb(241, 241, 243);   // #F1F1F3
+                Surface = Color.FromArgb(250, 250, 251);      // #FAFAFB
+                SurfaceAlt = Color.FromArgb(255, 255, 255);   // #FFFFFF
+                SurfaceHover = Color.FromArgb(224, 238, 225); // #E0EEE1
+                Border = Color.FromArgb(206, 206, 212);       // #CECED4
+
+                Text = Color.FromArgb(31, 32, 35);            // #1F2023
+                TextDim = Color.FromArgb(90, 95, 102);        // #5A5F66
+                TextOnAccent = Color.White;
+
+                Accent = Color.FromArgb(76, 175, 80);         // #4CAF50
+                AccentHover = Color.FromArgb(69, 160, 73);    // #45A049
+                Success = Color.FromArgb(30, 126, 66);        // #1E7E42
+                Warning = Color.FromArgb(140, 105, 10);       // #8C690A
+                Error = Color.FromArgb(190, 40, 40);          // #BE2828
+                Muted = Color.FromArgb(122, 128, 136);
+            }
+        }
 
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
@@ -50,15 +115,16 @@ namespace WorkshopManager
         private const int SbHorz = 0;
 
         /// <summary>
-        /// Paints the window chrome dark. Supported from Windows 10 1809 on;
-        /// silently ignored elsewhere, which just leaves a light title bar.
+        /// Matches the window chrome to the current mode. Supported from
+        /// Windows 10 1809 on; silently ignored elsewhere, which only leaves
+        /// the title bar in the system's own colour.
         /// </summary>
-        public static void ApplyDarkTitleBar(Form form)
+        public static void ApplyTitleBar(Form form)
         {
             try
             {
-                int enabled = 1;
-                DwmSetWindowAttribute(form.Handle, DwmwaUseImmersiveDarkMode, ref enabled, sizeof(int));
+                int dark = Mode == ThemeMode.Dark ? 1 : 0;
+                DwmSetWindowAttribute(form.Handle, DwmwaUseImmersiveDarkMode, ref dark, sizeof(int));
             }
             catch
             {
@@ -66,7 +132,11 @@ namespace WorkshopManager
             }
         }
 
-        /// <summary>Styles a control and everything below it.</summary>
+        /// <summary>
+        /// Styles a control and everything below it. Safe to call again after
+        /// a mode change: everything it sets is overwritten, and the owner-draw
+        /// handlers are only attached once.
+        /// </summary>
         public static void Apply(Control control)
         {
             switch (control)
@@ -90,6 +160,7 @@ namespace WorkshopManager
                     textBox.BackColor = SurfaceAlt;
                     textBox.ForeColor = Text;
                     textBox.BorderStyle = BorderStyle.FixedSingle;
+                    if (textBox is HintTextBox hint) hint.HintColor = TextDim;
                     break;
 
                 // Deliberately left at the system FlatStyle: a flat check box
@@ -167,16 +238,29 @@ namespace WorkshopManager
         private static void StyleButton(Button button)
         {
             button.FlatStyle = FlatStyle.Flat;
-            button.BackColor = Surface;
-            button.ForeColor = Text;
             button.Font = BaseFont;
             button.Cursor = Cursors.Hand;
             button.FlatAppearance.BorderColor = Border;
             button.FlatAppearance.BorderSize = 1;
             button.FlatAppearance.MouseOverBackColor = SurfaceHover;
             button.FlatAppearance.MouseDownBackColor = SurfaceAlt;
+
+            ApplyButtonState(button);
+
+            // A disabled flat button is drawn in a washed out system grey that
+            // all but disappears on a dark surface, so the states are painted
+            // from the palette instead.
+            if (hooked.Add(button))
+            {
+                button.EnabledChanged += (s, e) => ApplyButtonState((Button)s);
+            }
         }
 
+        private static void ApplyButtonState(Button button)
+        {
+            button.BackColor = button.Enabled ? Surface : Background;
+            button.ForeColor = button.Enabled ? Text : Muted;
+        }
 
         /// <summary>
         /// Widens the last column to the right edge. The header strip beyond
@@ -222,6 +306,8 @@ namespace WorkshopManager
             tabs.ItemSize = new Size(150, 30);
             tabs.BackColor = Background;
 
+            if (!hooked.Add(tabs)) return;
+
             tabs.DrawItem += (s, e) =>
             {
                 bool selected = e.Index == tabs.SelectedIndex;
@@ -253,7 +339,7 @@ namespace WorkshopManager
                 e.Graphics.FillRectangle(fill, lastTab.Right, client.Top,
                     client.Width - lastTab.Right, tabs.ItemSize.Height + 4);
 
-                // Erase the frame around the page, then draw a subtle one
+                // Erase the frame around the page
                 var top = tabs.ItemSize.Height + 2;
                 using var eraser = new Pen(Background, 4);
                 e.Graphics.DrawRectangle(eraser, client.Left + 1, top,
@@ -271,6 +357,8 @@ namespace WorkshopManager
             listView.OwnerDraw = true;
             listView.FullRowSelect = true;
             listView.GridLines = false;
+
+            if (!hooked.Add(listView)) return;
 
             listView.DrawColumnHeader += (s, e) =>
             {

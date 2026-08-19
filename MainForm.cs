@@ -64,6 +64,8 @@ namespace WorkshopManager
         private TextBox searchBox;
         private ListView modListView;
         private ModDetailPanel detailPanel;
+        private Button themeButton;
+        private Panel bottomBar;
         private SplitContainer listSplit;
         private Button installButton;
         private Button cancelButton;
@@ -80,18 +82,20 @@ namespace WorkshopManager
                 settings = Settings.Load();
                 cancellationTokenSource = new CancellationTokenSource();
 
+                Theme.SetMode(settings.Theme.Equals("Light", StringComparison.OrdinalIgnoreCase)
+                    ? ThemeMode.Light
+                    : ThemeMode.Dark);
+
                 InitializeComponent();
                 SetupUI();
-
-                Theme.Apply(this);
-                Theme.StylePrimary(installButton);
+                ApplyTheme();
 
                 logger = new Logger(logBox);
 
                 FormClosing += MainForm_FormClosing;
                 Shown += async (s, e) =>
                 {
-                    Theme.ApplyDarkTitleBar(this);
+                    Theme.ApplyTitleBar(this);
                     ApplyInitialSplitterDistance();
                     await InitializeWebViewAsync();
                     await CheckForUpdatesAsync();
@@ -141,7 +145,64 @@ namespace WorkshopManager
             tabControl.TabPages.Add(installTab);
             tabControl.TabPages.Add(logTab);
 
+            // A slim bar of its own rather than an overlay on the tab strip:
+            // WinForms does not reliably clip sibling controls against each
+            // other, so the tab control simply painted over a floating button.
+            bottomBar = new Panel { Dock = DockStyle.Bottom, Height = 32 };
+
+            themeButton = new Button { Size = new Size(100, 24), TabStop = false };
+            themeButton.Click += ToggleTheme;
+            bottomBar.Controls.Add(themeButton);
+            bottomBar.Resize += (s, e) => PositionThemeButton(bottomBar);
+            bottomBar.Paint += (s, e) =>
+            {
+                using var separator = new Pen(Theme.Border);
+                e.Graphics.DrawLine(separator, 0, 0, bottomBar.Width, 0);
+            };
+
             Controls.Add(tabControl);
+            Controls.Add(bottomBar);
+
+            PositionThemeButton(bottomBar);
+        }
+
+        private void PositionThemeButton(Panel bar)
+        {
+            themeButton.Location = new Point(
+                bar.ClientSize.Width - themeButton.Width - 12,
+                (bar.ClientSize.Height - themeButton.Height) / 2);
+        }
+
+        private void ToggleTheme(object sender, EventArgs e)
+        {
+            Theme.SetMode(Theme.Mode == ThemeMode.Dark ? ThemeMode.Light : ThemeMode.Dark);
+            settings.Theme = Theme.Mode.ToString();
+            ApplyTheme();
+        }
+
+        /// <summary>
+        /// Applies the current theme to the whole form. Safe to call again on
+        /// every switch: Theme.Apply overwrites what it sets and attaches its
+        /// owner-draw handlers only once.
+        /// </summary>
+        private void ApplyTheme()
+        {
+            Theme.Apply(this);
+            Theme.StylePrimary(installButton);
+            detailPanel.RestyleFromTheme();
+
+            // Applied after Theme.Apply, which makes every panel transparent -
+            // a transparent bar lets the content above bleed through it.
+            bottomBar.BackColor = Theme.Surface;
+
+            themeButton.Text = Theme.Mode == ThemeMode.Dark ? "Light mode" : "Dark mode";
+
+            // Row colours are baked into the items, so they have to be redone
+            foreach (var item in modItems) UpdateListViewItem(item);
+
+            if (IsHandleCreated) Theme.ApplyTitleBar(this);
+            modListView.Invalidate();
+            tabControl.Invalidate();
         }
 
         private void SetupBrowserTab()
@@ -167,7 +228,7 @@ namespace WorkshopManager
             navPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40));
             navPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40));
             navPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40));
-            navPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55));
+            navPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
             navPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             navPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 55));
 
@@ -177,7 +238,7 @@ namespace WorkshopManager
             forwardButton = new Button { Text = "▶", Dock = DockStyle.Fill, Margin = new Padding(3) };
             forwardButton.Click += (s, e) => { if (webViewReady && webView.CanGoForward) webView.GoForward(); };
 
-            reloadButton = new Button { Text = "⟳", Dock = DockStyle.Fill, Margin = new Padding(3) };
+            reloadButton = new Button { Text = "↻", Dock = DockStyle.Fill, Margin = new Padding(3) };
             reloadButton.Click += (s, e) => { if (webViewReady) webView.Reload(); };
 
             homeButton = new Button { Text = "Home", Dock = DockStyle.Fill, Margin = new Padding(3) };
