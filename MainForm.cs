@@ -57,6 +57,7 @@ namespace WorkshopManager
         private Button removeSelectedButton;
         private Button clearListButton;
         private Button checkInstalledButton;
+        private Button loadInstalledButton;
         private CheckBox cleanupCheckBox;
         private CheckBox skipInstalledCheckBox;
         private TextBox searchBox;
@@ -381,8 +382,11 @@ namespace WorkshopManager
             clearListButton.Click += ClearModList;
             checkInstalledButton = new Button { Text = "Check installed / updates", AutoSize = true, Margin = new Padding(3) };
             checkInstalledButton.Click += (s, e) => RefreshInstalledStatus();
+            loadInstalledButton = new Button { Text = "Load installed library", AutoSize = true, Margin = new Padding(3) };
+            loadInstalledButton.Click += LoadInstalledLibrary;
 
             listButtonsPanel.Controls.Add(searchBox);
+            listButtonsPanel.Controls.Add(loadInstalledButton);
             listButtonsPanel.Controls.Add(removeSelectedButton);
             listButtonsPanel.Controls.Add(clearListButton);
             listButtonsPanel.Controls.Add(checkInstalledButton);
@@ -776,6 +780,36 @@ namespace WorkshopManager
             {
                 addUrlButton.Enabled = true;
             }
+        }
+
+        /// <summary>
+        /// Loads every mod installed in the configured target directories
+        /// from its mod_&lt;id&gt;.info file. Works entirely offline and also
+        /// lists mods whose Workshop page no longer exists.
+        /// </summary>
+        private void LoadInstalledLibrary(object sender, EventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(targetDirBox.Text))
+            {
+                MessageBox.Show(
+                    "Please select the install folder first - that is where the mod info files are stored.",
+                    "No install folder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var installed = InstallationService.LoadInstalledMods(settings, targetDirBox.Text);
+
+            if (installed.Count == 0)
+            {
+                MessageBox.Show(
+                    "No installed mods found. Info files are written during installation, " +
+                    "so only mods installed with this app appear here.",
+                    "Nothing found", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            logger.Info($"Loaded {installed.Count} installed mods from disk");
+            AddItemsToList(installed);
         }
 
         private void LoadScriptFile(object sender, EventArgs e)
@@ -1225,6 +1259,7 @@ namespace WorkshopManager
             removeSelectedButton.Enabled = enabled;
             clearListButton.Enabled = enabled;
             checkInstalledButton.Enabled = enabled;
+            loadInstalledButton.Enabled = enabled;
             installButton.Enabled = enabled;
             cleanupCheckBox.Enabled = enabled;
             skipInstalledCheckBox.Enabled = enabled;

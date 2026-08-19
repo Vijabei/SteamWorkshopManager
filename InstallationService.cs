@@ -109,6 +109,110 @@ namespace WorkshopManager
             return null;
         }
 
+        /// <summary>
+        /// Reads a mod_&lt;id&gt;.info file back into a WorkshopItem.
+        /// Returns null if the file carries no workshop id. Tolerates the
+        /// shorter info files written by earlier versions, which have no
+        /// tags, preview URL or description.
+        /// </summary>
+        public static WorkshopItem ReadInfoFile(string infoFilePath)
+        {
+            try
+            {
+                var item = new WorkshopItem { Status = WorkshopItemStatus.Installed };
+                var description = new List<string>();
+                bool inDescription = false;
+
+                foreach (var line in File.ReadAllLines(infoFilePath))
+                {
+                    if (line.StartsWith("# Description", StringComparison.OrdinalIgnoreCase))
+                    {
+                        inDescription = true;
+                        continue;
+                    }
+
+                    if (inDescription)
+                    {
+                        description.Add(line);
+                        continue;
+                    }
+
+                    // Split on the first colon only - values such as the
+                    // preview URL contain colons themselves.
+                    int separator = line.IndexOf(':');
+                    if (separator < 0 || line.StartsWith("#")) continue;
+
+                    var key = line.Substring(0, separator).Trim();
+                    var value = line.Substring(separator + 1).Trim();
+
+                    switch (key.ToLowerInvariant())
+                    {
+                        case "steam workshop id": item.ModId = value; break;
+                        case "game id": item.AppId = value; break;
+                        case "title": item.Title = value; break;
+                        case "tags": item.Tags = value; break;
+                        case "preview image": item.PreviewUrl = value; break;
+                        case "time updated":
+                            if (long.TryParse(value, NumberStyles.Integer,
+                                CultureInfo.InvariantCulture, out var updated))
+                            {
+                                item.TimeUpdated = updated;
+                            }
+                            break;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(item.ModId)) return null;
+
+                item.Description = string.Join(Environment.NewLine, description).Trim();
+                if (string.IsNullOrEmpty(item.Title)) item.Title = $"Mod {item.ModId}";
+
+                return item;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Collects every mod installed under the configured target
+        /// directories by reading the mod_&lt;id&gt;.info files written at
+        /// install time. Works entirely offline.
+        /// </summary>
+        public static List<WorkshopItem> LoadInstalledMods(Settings settings, string defaultTargetDir)
+        {
+            var directories = new List<string>();
+            if (!string.IsNullOrWhiteSpace(defaultTargetDir)) directories.Add(defaultTargetDir);
+
+            if (settings?.GameRules != null)
+            {
+                foreach (var rule in settings.GameRules.Values)
+                {
+                    if (!string.IsNullOrWhiteSpace(rule?.TargetDirectory))
+                    {
+                        directories.Add(rule.TargetDirectory);
+                    }
+                }
+            }
+
+            var mods = new List<WorkshopItem>();
+            var seen = new HashSet<string>();
+
+            foreach (var directory in directories.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!Directory.Exists(directory)) continue;
+
+                foreach (var file in Directory.EnumerateFiles(directory, "mod_*.info"))
+                {
+                    var item = ReadInfoFile(file);
+                    if (item != null && seen.Add(item.ModId)) mods.Add(item);
+                }
+            }
+
+            return mods;
+        }
+
         public async Task<InstallationResult> InstallModsAsync(
             IReadOnlyList<WorkshopItem> mods,
             InstallationOptions options,
