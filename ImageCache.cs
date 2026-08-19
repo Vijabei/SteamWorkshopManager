@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Net.Http;
 using System.Threading;
@@ -22,6 +24,9 @@ namespace WorkshopManager
             "WorkshopManager", "previews");
 
         private const int MaxMemoryEntries = 200;
+
+        /// <summary>Longest edge kept in the cache; the pane is far smaller.</summary>
+        private const int MaxDimension = 512;
 
         private static readonly Dictionary<string, Image> memory = new();
         private static readonly object gate = new();
@@ -58,10 +63,8 @@ namespace WorkshopManager
                     await File.WriteAllBytesAsync(file, bytes, cancellationToken);
                 }
 
-                // Copy into memory first: creating an Image straight from a
-                // FileStream keeps the file locked for the image's lifetime.
-                using var stream = new MemoryStream(bytes);
-                var image = Image.FromStream(stream);
+                var image = DecodeStandalone(bytes);
+                if (image == null) return null;
 
                 lock (gate)
                 {
@@ -81,6 +84,48 @@ namespace WorkshopManager
                 // must never disrupt browsing the list.
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Decodes image bytes into a bitmap that no longer depends on the
+        /// source stream, and that has exactly one frame.
+        ///
+        /// Both matter. An Image created with Image.FromStream keeps reading
+        /// from that stream for as long as it lives - animated GIFs fetch each
+        /// frame lazily - so releasing the stream makes GDI+ fail later, deep
+        /// inside PictureBox's paint. And a multi-frame image makes PictureBox
+        /// start its ImageAnimator, which is what triggers those reads in the
+        /// first place. Many workshop previews are animated GIFs.
+        ///
+        /// Flattening to the first frame loses the animation in a thumbnail
+        /// barely 110 pixels tall, which is a fair trade for not crashing.
+        /// </summary>
+        private static Image DecodeStandalone(byte[] bytes)
+        {
+            using var stream = new MemoryStream(bytes);
+            using var decoded = Image.FromStream(stream);
+
+            var width = decoded.Width;
+            var height = decoded.Height;
+            if (width <= 0 || height <= 0) return null;
+
+            // Preview panes are small, so oversized artwork is scaled down
+            // instead of being kept at full size in the cache.
+            if (width > MaxDimension || height > MaxDimension)
+            {
+                var scale = Math.Min((double)MaxDimension / width, (double)MaxDimension / height);
+                width = Math.Max(1, (int)(width * scale));
+                height = Math.Max(1, (int)(height * scale));
+            }
+
+            var copy = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+            using (var graphics = Graphics.FromImage(copy))
+            {
+                graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                graphics.DrawImage(decoded, new Rectangle(0, 0, width, height));
+            }
+
+            return copy;
         }
 
         /// <summary>True if the preview is already available without network.</summary>
