@@ -176,6 +176,7 @@ namespace WorkshopManager
                             : (notFound ? $"Mod {id} (gone from Steam)" : $"Mod {id} (details unavailable)"),
                         FileSize = ok ? ((long?)d["file_size"] ?? 0) : 0,
                         TimeUpdated = ok ? ((long?)d["time_updated"] ?? 0) : 0,
+                        TimeCreated = ok ? ((long?)d["time_created"] ?? 0) : 0,
                         Description = ok ? ((string)d["description"] ?? "") : "",
                         PreviewUrl = ok ? ((string)d["preview_url"] ?? "") : "",
                         Tags = ok ? string.Join(", ", (d["tags"] as JArray ?? new JArray())

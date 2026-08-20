@@ -58,9 +58,32 @@ namespace WorkshopManager
                 }
                 else
                 {
-                    bytes = await http.GetByteArrayAsync(url, cancellationToken);
+                    using var response = await http.GetAsync(url, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+
+                    bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
                     if (bytes.Length == 0) return null;
                     await File.WriteAllBytesAsync(file, bytes, cancellationToken);
+
+                    // Steam serves the date the picture was uploaded, which
+                    // matches the mod's creation date. Keeping it means the
+                    // cached file carries the image's own date rather than the
+                    // moment we happened to fetch it - the same thing a browser
+                    // does when you save a preview by hand.
+                    var uploaded = response.Content.Headers.LastModified;
+                    if (uploaded.HasValue)
+                    {
+                        try
+                        {
+                            File.SetCreationTimeUtc(file, uploaded.Value.UtcDateTime);
+                            File.SetLastWriteTimeUtc(file, uploaded.Value.UtcDateTime);
+                        }
+                        catch (Exception)
+                        {
+                            // A cached preview with the wrong date is still a
+                            // usable preview - never fail the download over it.
+                        }
+                    }
                 }
 
                 var image = DecodeStandalone(bytes);

@@ -16,6 +16,7 @@ namespace WorkshopManager
         public string Tags { get; set; } = "";
         public string PreviewUrl { get; set; } = "";
         public long TimeUpdated { get; set; }
+        public long TimeCreated { get; set; }
         public bool Banned { get; set; }
 
         public List<ModRequirement> RequiredMods { get; set; } = new();
@@ -37,6 +38,7 @@ namespace WorkshopManager
             Tags = Tags,
             PreviewUrl = PreviewUrl,
             TimeUpdated = TimeUpdated,
+            TimeCreated = TimeCreated,
             Banned = Banned,
             RequiredMods = new List<ModRequirement>(RequiredMods),
             RequiredDlc = new List<ModRequirement>(RequiredDlc),
@@ -152,6 +154,7 @@ namespace WorkshopManager
                 entry.InstallDirectory = Prefer(installDirectory, entry.InstallDirectory);
 
                 if (item.TimeUpdated > 0) entry.TimeUpdated = item.TimeUpdated;
+                if (item.TimeCreated > 0) entry.TimeCreated = item.TimeCreated;
                 entry.Banned = item.Banned;
 
                 if (item.RequirementsChecked)

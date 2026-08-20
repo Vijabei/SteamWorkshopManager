@@ -65,6 +65,14 @@ namespace WorkshopManager
             document.AppendLine($"mod_id: \"{entry.ModId}\"");
             document.AppendLine($"app_id: \"{entry.AppId}\"");
             document.AppendLine($"title: {YamlString(entry.Title)}");
+            // Two different dates, both from the Workshop: when the mod first
+            // appeared, and when the version on disk was published. Neither is
+            // the date the files were downloaded - Steam never sends the
+            // authors' original file dates, so those cannot be recorded.
+            if (entry.TimeCreated > 0)
+            {
+                document.AppendLine($"published: {DateTimeOffset.FromUnixTimeSeconds(entry.TimeCreated).LocalDateTime:yyyy-MM-dd}");
+            }
             if (entry.TimeUpdated > 0)
             {
                 document.AppendLine($"updated: {DateTimeOffset.FromUnixTimeSeconds(entry.TimeUpdated).LocalDateTime:yyyy-MM-dd}");

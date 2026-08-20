@@ -31,6 +31,13 @@ namespace WorkshopManager
         /// <summary>Unix timestamp of the last workshop update, 0 if unknown.</summary>
         public long TimeUpdated { get; set; }
 
+        /// <summary>
+        /// When the item was first published, as a unix timestamp. Recorded
+        /// alongside TimeUpdated because the two answer different questions:
+        /// when the mod appeared, and which version is on disk.
+        /// </summary>
+        public long TimeCreated { get; set; }
+
         /// <summary>Workshop description. Archived locally so it survives
         /// the item being removed from the Workshop.</summary>
         public string Description { get; set; } = "";
@@ -145,6 +152,11 @@ namespace WorkshopManager
                 return $"{size:0.#} {units[unit]}";
             }
         }
+
+        public string TimeCreatedText =>
+            TimeCreated > 0
+                ? DateTimeOffset.FromUnixTimeSeconds(TimeCreated).LocalDateTime.ToString("yyyy-MM-dd")
+                : "";
 
         public string TimeUpdatedText =>
             TimeUpdated > 0
