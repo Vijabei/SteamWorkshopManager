@@ -1,6 +1,6 @@
 # Workshop Manager
 
-![License](https://img.shields.io/badge/License-CC%20BY--NC-lightgrey.svg)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4)
 
 A Windows application designed to simplify the installation and management of Steam Workshop mods. It resolves Workshop collections locally via the official Steam Web API, downloads mods with SteamCMD and installs them into your game — no external website or script files required.
@@ -75,17 +75,16 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the [Creative Commons Attribution-NonCommercial 4.0 International License](https://creativecommons.org/licenses/by-nc/4.0/).
+Licensed under the [Apache License, Version 2.0](LICENSE).
 
-This means you are free to:
-- Share — copy and redistribute the material in any medium or format
-- Adapt — remix, transform, and build upon the material
+You are free to use, modify and redistribute this software, including
+commercially. In return the license asks that you keep the copyright and
+license notices, state which files you changed, and accept that the software
+comes with no warranty. It also grants you the relevant patent rights.
 
-Under the following terms:
-- Attribution — You must give appropriate credit, provide a link to the license, and indicate if changes were made
-- NonCommercial — You may not use the material for commercial purposes
-
-The licensor cannot revoke these freedoms as long as you follow the license terms.
+Versions up to and including 1.1.0 were published under CC BY-NC 4.0. Anyone
+who received a copy under that license keeps those rights; everything from
+here on is Apache 2.0.
 
 ## Acknowledgments
 
