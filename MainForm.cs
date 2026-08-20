@@ -148,17 +148,17 @@ namespace WorkshopManager
             // A slim bar of its own rather than an overlay on the tab strip:
             // WinForms does not reliably clip sibling controls against each
             // other, so the tab control simply painted over a floating button.
-            bottomBar = new Panel { Dock = DockStyle.Bottom, Height = 32 };
+            bottomBar = new Panel { Dock = DockStyle.Bottom, Height = 40 };
 
-            themeButton = new Button { Size = new Size(100, 24), TabStop = false };
+            themeButton = new Button { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, TabStop = false };
             themeButton.Click += ToggleTheme;
             bottomBar.Controls.Add(themeButton);
 
-            channelButton = new Button { Size = new Size(150, 24), TabStop = false };
+            channelButton = new Button { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, TabStop = false };
             channelButton.Click += ToggleUpdateChannel;
             bottomBar.Controls.Add(channelButton);
 
-            settingsButton = new Button { Text = "Settings...", Size = new Size(100, 24), TabStop = false };
+            settingsButton = new Button { Text = "Settings...", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, TabStop = false };
             settingsButton.Click += OpenSettings;
             bottomBar.Controls.Add(settingsButton);
 
@@ -179,8 +179,19 @@ namespace WorkshopManager
             PositionThemeButton(bottomBar);
         }
 
+        /// <summary>
+        /// Lays the bottom bar out from the right edge. The buttons size
+        /// themselves from their text, so this runs again whenever a label
+        /// changes and not only on a resize.
+        /// </summary>
         private void PositionThemeButton(Panel bar)
         {
+            // Room around the label, so a button is never a tight box of text
+            foreach (var b in new[] { themeButton, channelButton, settingsButton })
+            {
+                b.Padding = new Padding(12, 5, 12, 5);
+            }
+
             var top = (bar.ClientSize.Height - themeButton.Height) / 2;
             themeButton.Location = new Point(bar.ClientSize.Width - themeButton.Width - 12, top);
             channelButton.Location = new Point(themeButton.Left - channelButton.Width - 8, top);
@@ -225,6 +236,7 @@ namespace WorkshopManager
         {
             channelButton.Text = OnBetaChannel ? "Updates: Beta" : "Updates: Stable";
             channelButton.ForeColor = OnBetaChannel ? Theme.Warning : Theme.Text;
+            if (bottomBar != null) PositionThemeButton(bottomBar);
         }
 
         private void ToggleTheme(object sender, EventArgs e)

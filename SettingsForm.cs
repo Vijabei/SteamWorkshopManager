@@ -27,6 +27,8 @@ namespace WorkshopManager
         private readonly CheckBox cleanupBox;
         private readonly CheckBox skipInstalledBox;
         private readonly CheckBox checkUpdatesBox;
+        private readonly ComboBox folderNamingCombo;
+        private readonly CheckBox workshopDatesBox;
         private readonly Label steamCmdState;
 
         public SettingsForm(Settings settings, ModLibrary library)
@@ -39,7 +41,7 @@ namespace WorkshopManager
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
             MaximizeBox = false;
-            ClientSize = new Size(640, 570);
+            ClientSize = new Size(700, 740);
 
             var layout = new TableLayoutPanel
             {
@@ -48,13 +50,14 @@ namespace WorkshopManager
                 Padding = new Padding(14),
                 AutoScroll = true
             };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
 
             int row = 0;
 
-            void AddRow(int height = 32) => layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+            // Rows are sized for the current base font; it grew, so did these.
+            void AddRow(int height = 36) => layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
 
             // --- SteamCMD -----------------------------------------------
             AddRow();
@@ -72,7 +75,7 @@ namespace WorkshopManager
             layout.Controls.Add(browseSteamCmd, 2, row);
             row++;
 
-            AddRow(30);
+            AddRow(34);
             steamCmdState = new Label { Dock = DockStyle.Fill, Font = Theme.SmallFont, Margin = new Padding(3, 0, 3, 0) };
             var getSteamCmd = new Button { Text = "Download it for me", Dock = DockStyle.Fill, Margin = new Padding(3) };
             getSteamCmd.Click += DownloadSteamCmd;
@@ -93,7 +96,7 @@ namespace WorkshopManager
             batchSize = Spinner(1, 200, settings.BatchSize);
             layout.Controls.Add(FieldLabel("Mods per batch:"), 0, row);
             layout.Controls.Add(batchSize, 1, row);
-            layout.Controls.Add(Hint("Smaller batches are slower but more reliable"), 2, row);
+            layout.Controls.Add(Hint("Smaller batches are\nslower but more reliable"), 2, row);
             row++;
 
             AddRow();
@@ -102,7 +105,7 @@ namespace WorkshopManager
             layout.Controls.Add(retries, 1, row);
             row++;
 
-            AddRow(28);
+            AddRow(32);
             cleanupBox = new CheckBox
             {
                 Text = "Delete the raw SteamCMD downloads after installing",
@@ -114,7 +117,7 @@ namespace WorkshopManager
             layout.SetColumnSpan(cleanupBox, 2);
             row++;
 
-            AddRow(28);
+            AddRow(32);
             skipInstalledBox = new CheckBox
             {
                 Text = "Skip mods that are already installed",
@@ -126,8 +129,37 @@ namespace WorkshopManager
             layout.SetColumnSpan(skipInstalledBox, 2);
             row++;
 
+            // --- Archiving ------------------------------------------------
+            AddRow(42);
+            var archiveHeading = SectionLabel("Archiving");
+            layout.Controls.Add(archiveHeading, 0, row);
+            layout.SetColumnSpan(archiveHeading, 3);
+            row++;
+
+            AddRow();
+            folderNamingCombo = Choice("Workshop ID", "Mod title");
+            folderNamingCombo.SelectedItem =
+                "Title".Equals(settings.ModFolderNaming, StringComparison.OrdinalIgnoreCase)
+                    ? "Mod title" : "Workshop ID";
+            layout.Controls.Add(FieldLabel("Folder names:"), 0, row);
+            layout.Controls.Add(folderNamingCombo, 1, row);
+            layout.Controls.Add(Hint("Most games need\nthe ID"), 2, row);
+            row++;
+
+            AddRow(32);
+            workshopDatesBox = new CheckBox
+            {
+                Text = "Date files by when the mod was published, not downloaded",
+                Checked = settings.UseWorkshopDates,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(3, 0, 3, 0)
+            };
+            layout.Controls.Add(workshopDatesBox, 1, row);
+            layout.SetColumnSpan(workshopDatesBox, 2);
+            row++;
+
             // --- Appearance and updates ---------------------------------
-            AddRow(38);
+            AddRow(42);
             var appearanceHeading = SectionLabel("Appearance and updates");
             layout.Controls.Add(appearanceHeading, 0, row);
             layout.SetColumnSpan(appearanceHeading, 3);
@@ -145,10 +177,10 @@ namespace WorkshopManager
             channelCombo.SelectedItem = settings.UpdateChannel.Equals("Beta", StringComparison.OrdinalIgnoreCase) ? "Beta" : "Stable";
             layout.Controls.Add(FieldLabel("Update channel:"), 0, row);
             layout.Controls.Add(channelCombo, 1, row);
-            layout.Controls.Add(Hint("Beta = newer, less tested"), 2, row);
+            layout.Controls.Add(Hint("Beta = newer,\nless tested"), 2, row);
             row++;
 
-            AddRow(28);
+            AddRow(32);
             checkUpdatesBox = new CheckBox
             {
                 Text = "Look for updates when the app starts",
@@ -161,13 +193,13 @@ namespace WorkshopManager
             row++;
 
             // --- Library -------------------------------------------------
-            AddRow(38);
+            AddRow(42);
             var libraryHeading = SectionLabel("Mod library");
             layout.Controls.Add(libraryHeading, 0, row);
             layout.SetColumnSpan(libraryHeading, 3);
             row++;
 
-            AddRow(40);
+            AddRow(46);
             var libraryInfo = new Label
             {
                 Dock = DockStyle.Fill,
@@ -181,7 +213,7 @@ namespace WorkshopManager
             layout.Controls.Add(openLibrary, 2, row);
             row++;
 
-            AddRow(30);
+            AddRow(34);
             var exportHint = Hint("Readable archive - one file per mod, works without this app");
             var exportButton = new Button { Text = "Export as Markdown", Dock = DockStyle.Fill, Margin = new Padding(3) };
             exportButton.Click += ExportLibrary;
@@ -232,12 +264,17 @@ namespace WorkshopManager
             Margin = new Padding(3)
         };
 
+        /// <summary>
+        /// The note beside a field. The column is narrow, so the texts carry
+        /// their own line breaks rather than being wrapped mid-phrase.
+        /// </summary>
         private static Label Hint(string text) => new()
         {
             Text = text,
             Dock = DockStyle.Fill,
             Font = Theme.SmallFont,
             TextAlign = ContentAlignment.MiddleLeft,
+            AutoSize = false,
             Margin = new Padding(3)
         };
 
@@ -396,6 +433,9 @@ namespace WorkshopManager
             settings.CleanupAfterInstall = cleanupBox.Checked;
             settings.SkipInstalledMods = skipInstalledBox.Checked;
             settings.CheckForUpdates = checkUpdatesBox.Checked;
+            settings.ModFolderNaming =
+                (folderNamingCombo.SelectedItem as string) == "Mod title" ? "Title" : "Id";
+            settings.UseWorkshopDates = workshopDatesBox.Checked;
             settings.Theme = themeCombo.SelectedItem as string ?? "Dark";
             settings.UpdateChannel = channelCombo.SelectedItem as string ?? "Stable";
             settings.Save();

@@ -46,10 +46,10 @@ namespace WorkshopManager
         public static Color Error { get; private set; }
         public static Color Muted { get; private set; }
 
-        public static readonly Font BaseFont = new("Segoe UI", 9F);
-        public static readonly Font BoldFont = new("Segoe UI", 9F, FontStyle.Bold);
-        public static readonly Font TitleFont = new("Segoe UI Semibold", 12F);
-        public static readonly Font SmallFont = new("Segoe UI", 8.25F);
+        public static readonly Font BaseFont = new("Segoe UI", 9.75F);
+        public static readonly Font BoldFont = new("Segoe UI", 9.75F, FontStyle.Bold);
+        public static readonly Font TitleFont = new("Segoe UI Semibold", 13F);
+        public static readonly Font SmallFont = new("Segoe UI", 9F);
 
         /// <summary>
         /// Controls whose owner-draw handlers are already attached. Applying a
