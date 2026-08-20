@@ -119,14 +119,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $args = @(
+          # Not $args - that is an automatic PowerShell variable
+          $releaseArgs = @(
             '${{ steps.version.outputs.tag }}'
             '${{ steps.package.outputs.zip }}'
             '--draft'
             '--generate-notes'
             '--title', 'Workshop Manager ${{ steps.version.outputs.version }}'
           )
-          if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $args += '--prerelease' }
+          if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $releaseArgs += '--prerelease' }
 
-          gh release create @args
+          gh release create @releaseArgs
           Write-Host 'Draft release created. Review the notes and publish it on GitHub.'
