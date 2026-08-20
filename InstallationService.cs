@@ -246,10 +246,13 @@ namespace WorkshopManager
             var processedGameIds = new HashSet<string>();
             var pending = new List<WorkshopItem>();
 
-            void ReportProcessed(string operation)
+            // The message is built after the counter is raised, so a message
+            // can name the number of mods finished including this one. Passing
+            // a ready-made string would report the count from before it.
+            void ReportProcessed(Func<string> describe)
             {
                 installProgress.ProcessedMods++;
-                installProgress.CurrentOperation = operation;
+                installProgress.CurrentOperation = describe();
                 progress.Report(installProgress);
             }
 
@@ -267,7 +270,7 @@ namespace WorkshopManager
                         statusChanged?.Invoke(mod);
                         logger.Error($"Mod {mod.ModId} has no game id and cannot be downloaded");
                         result.Failed++;
-                        ReportProcessed($"Skipped mod {mod.ModId} (no game id)");
+                        ReportProcessed(() => $"Skipped mod {mod.ModId} (no game id)");
                         continue;
                     }
 
@@ -281,7 +284,7 @@ namespace WorkshopManager
                         statusChanged?.Invoke(mod);
                         logger.Info($"Skipping already installed mod {mod.ModId} ({mod.Title})");
                         result.Skipped++;
-                        ReportProcessed($"Skipped installed mod {mod.ModId}");
+                        ReportProcessed(() => $"Skipped installed mod {mod.ModId}");
                         continue;
                     }
 
@@ -306,14 +309,14 @@ namespace WorkshopManager
                         if (mod.Status == WorkshopItemStatus.Failed)
                         {
                             result.Failed++;
-                            ReportProcessed($"Download failed for mod {mod.ModId}");
+                            ReportProcessed(() => $"Download failed for mod {mod.ModId}");
                             continue;
                         }
 
                         await InstallModAsync(mod, cancellationToken);
                         statusChanged?.Invoke(mod);
                         result.Installed++;
-                        ReportProcessed($"Installed {installProgress.ProcessedMods} of {installProgress.TotalMods} mods");
+                        ReportProcessed(() => $"Installed {installProgress.ProcessedMods} of {installProgress.TotalMods} mods");
                     }
                 }
 
