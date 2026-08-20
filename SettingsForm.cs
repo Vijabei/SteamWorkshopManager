@@ -181,6 +181,14 @@ namespace WorkshopManager
             layout.Controls.Add(openLibrary, 2, row);
             row++;
 
+            AddRow(30);
+            var exportHint = Hint("Readable archive - one file per mod, works without this app");
+            var exportButton = new Button { Text = "Export as Markdown", Dock = DockStyle.Fill, Margin = new Padding(3) };
+            exportButton.Click += ExportLibrary;
+            layout.Controls.Add(exportHint, 1, row);
+            layout.Controls.Add(exportButton, 2, row);
+            row++;
+
             // --- Buttons --------------------------------------------------
             var buttons = new FlowLayoutPanel
             {
@@ -333,6 +341,35 @@ namespace WorkshopManager
             if (dialog.ShowDialog(this) == DialogResult.OK)
             {
                 installFolderBox.Text = dialog.SelectedPath;
+            }
+        }
+
+        private void ExportLibrary(object sender, EventArgs e)
+        {
+            if (library.Count == 0)
+            {
+                MessageBox.Show("There is nothing archived yet. The library fills up as you install mods.",
+                    "Nothing to export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "Choose where to write the Markdown files"
+            };
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            try
+            {
+                var written = ModLibraryExport.Export(library, dialog.SelectedPath);
+                MessageBox.Show(
+                    $"Wrote {written} mods plus an index to:{Environment.NewLine}{dialog.SelectedPath}",
+                    "Export finished", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"The export failed: {ex.Message}",
+                    "Export", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

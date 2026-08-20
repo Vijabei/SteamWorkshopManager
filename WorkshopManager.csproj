@@ -5,7 +5,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>WorkshopManager</RootNamespace>
-    <Version>1.2.0-beta.6</Version>
+    <Version>1.2.0-beta.7</Version>
     <!-- Framework-dependent settings -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
+using WorkshopManager.BBCode;
 
 namespace WorkshopManager
 {
@@ -21,7 +22,7 @@ namespace WorkshopManager
         private readonly Label metaLabel;
         private readonly Label statusLabel;
         private readonly LinkLabel requirementsLabel;
-        private readonly TextBox descriptionBox;
+        private readonly RichTextBox descriptionBox;
         private readonly Button openOnSteamButton;
         private readonly Label emptyHint;
 
@@ -101,16 +102,23 @@ namespace WorkshopManager
                 if (e.Link?.LinkData is string url) OpenUrlRequested?.Invoke(url);
             };
 
-            descriptionBox = new TextBox
+            // Rich text rather than plain: workshop descriptions are written
+            // in Steam's BBCode, and showing the raw [b] and [list] markup was
+            // worse than showing nothing.
+            descriptionBox = new RichTextBox
             {
                 Dock = DockStyle.Fill,
-                Multiline = true,
                 ReadOnly = true,
-                ScrollBars = ScrollBars.Vertical,
+                ScrollBars = RichTextBoxScrollBars.Vertical,
                 BackColor = Theme.SurfaceAlt,
                 ForeColor = Theme.Text,
                 BorderStyle = BorderStyle.FixedSingle,
-                Margin = new Padding(0, 0, 0, 8)
+                Margin = new Padding(0, 0, 0, 8),
+                DetectUrls = false   // the renderer produces the links itself
+            };
+            descriptionBox.LinkClicked += (s, e) =>
+            {
+                if (!string.IsNullOrWhiteSpace(e.LinkText)) OpenUrlRequested?.Invoke(e.LinkText);
             };
 
             openOnSteamButton = new Button
@@ -209,10 +217,7 @@ namespace WorkshopManager
 
             ShowRequirements(item);
 
-            descriptionBox.Text = string.IsNullOrWhiteSpace(item.Description)
-                ? "(no description archived - it is stored when the mod is installed)"
-                : item.Description.Replace("\n", Environment.NewLine);
-            descriptionBox.Select(0, 0);
+            ShowDescription(item);
 
             LoadPreview(item);
         }
@@ -266,6 +271,42 @@ namespace WorkshopManager
             {
                 requirementsLabel.Links.Add(link.Start, link.Length, link.Url);
             }
+        }
+
+        /// <summary>
+        /// Renders the description. A broken renderer must never cost the user
+        /// the text itself, so anything unexpected falls back to plain output.
+        /// </summary>
+        private void ShowDescription(WorkshopItem item)
+        {
+            if (string.IsNullOrWhiteSpace(item.Description))
+            {
+                descriptionBox.Clear();
+                descriptionBox.Text = "(no description archived - it is stored when the mod is installed)";
+                descriptionBox.ForeColor = Theme.TextDim;
+                return;
+            }
+
+            descriptionBox.ForeColor = Theme.Text;
+
+            try
+            {
+                descriptionBox.Rtf = BBCodeRenderer.ToRtf(
+                    item.Description, Theme.Text, Theme.Accent, Theme.TextDim);
+            }
+            catch
+            {
+                descriptionBox.Clear();
+                descriptionBox.Text = BBCodeRenderer.ToPlainText(item.Description);
+            }
+
+            // Assigning Rtf makes the control fall back to the document's own
+            // white page, so the theme colours have to be restored afterwards.
+            descriptionBox.BackColor = Theme.SurfaceAlt;
+            descriptionBox.ForeColor = Theme.Text;
+
+            descriptionBox.Select(0, 0);
+            descriptionBox.ScrollToCaret();
         }
 
         private async void LoadPreview(WorkshopItem item)

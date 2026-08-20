@@ -176,6 +176,15 @@ namespace WorkshopManager
             }
         }
 
+        /// <summary>The stored records themselves, for the Markdown export.</summary>
+        public List<LibraryEntry> Entries()
+        {
+            lock (gate)
+            {
+                return entries.Values.ToList();
+            }
+        }
+
         public List<WorkshopItem> All()
         {
             lock (gate)
