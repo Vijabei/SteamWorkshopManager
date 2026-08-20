@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -73,6 +75,125 @@ namespace WorkshopManager
             }
 
             return defaultTargetDir;
+        }
+
+        /// <summary>
+        /// Turns a Workshop title into something a file system accepts.
+        /// Returns "" when nothing usable is left, so callers fall back to
+        /// the mod id.
+        /// </summary>
+        public static string SanitiseFolderName(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title)) return "";
+
+            var invalid = Path.GetInvalidFileNameChars();
+            var builder = new StringBuilder(title.Length);
+
+            foreach (var c in title)
+            {
+                // Control characters survive GetInvalidFileNameChars on some
+                // platforms, and they have no business in a folder name.
+                if (Array.IndexOf(invalid, c) >= 0 || char.IsControl(c)) builder.Append(' ');
+                else builder.Append(c);
+            }
+
+            // Collapse the runs of spaces the replacements leave behind
+            var name = Regex.Replace(builder.ToString(), @"\s+", " ").Trim();
+
+            // Windows rejects a trailing dot or space, and very long names
+            // break once the path around them grows.
+            name = name.TrimEnd('.', ' ');
+            if (name.Length > 100) name = name.Substring(0, 100).TrimEnd('.', ' ');
+
+            return name;
+        }
+
+        /// <summary>
+        /// The folder a mod is installed into, below its game's target
+        /// directory. The id is the default because games and this app
+        /// identify mods by it; titles are for people who archive mods.
+        /// </summary>
+        public static string ModFolderName(Settings settings, WorkshopItem mod, string gameTarget)
+        {
+            var byTitle = settings != null &&
+                          "Title".Equals(settings.ModFolderNaming, StringComparison.OrdinalIgnoreCase);
+
+            if (!byTitle) return mod.ModId;
+
+            var name = SanitiseFolderName(mod.Title);
+            if (name.Length == 0) return mod.ModId;
+
+            // Titles are not unique. If a different mod already sits there,
+            // keep them apart rather than merging two mods into one folder.
+            var recorded = ReadInfoValue(GetInfoFilePath(settings, gameTarget, mod), "Folder");
+            if (!string.IsNullOrEmpty(recorded)) return recorded;
+
+            if (Directory.Exists(Path.Combine(gameTarget, name))) return $"{name} [{mod.ModId}]";
+
+            return name;
+        }
+
+        /// <summary>Reads a single "Key: value" line from a mod info file.</summary>
+        private static string ReadInfoValue(string infoFilePath, string key)
+        {
+            try
+            {
+                if (!File.Exists(infoFilePath)) return "";
+                foreach (var line in File.ReadLines(infoFilePath))
+                {
+                    if (line.StartsWith(key + ":", StringComparison.OrdinalIgnoreCase))
+                        return line.Substring(key.Length + 1).Trim();
+                    if (line.StartsWith("# Description")) break;
+                }
+            }
+            catch (Exception)
+            {
+                // A missing or unreadable info file simply means "not known"
+            }
+            return "";
+        }
+
+        /// <summary>
+        /// Stamps a freshly installed mod with the dates the Workshop reports
+        /// instead of the moment SteamCMD happened to write the files.
+        ///
+        /// Steam does not transmit the authors' original file dates - every
+        /// download carries the time it was written - so this is the closest
+        /// truthful answer available: the date this version was published.
+        /// </summary>
+        private void ApplyWorkshopDates(string root, WorkshopItem mod)
+        {
+            if (mod.TimeUpdated <= 0 || !Directory.Exists(root)) return;
+
+            var updated = DateTimeOffset.FromUnixTimeSeconds(mod.TimeUpdated).UtcDateTime;
+            var created = mod.TimeCreated > 0
+                ? DateTimeOffset.FromUnixTimeSeconds(mod.TimeCreated).UtcDateTime
+                : updated;
+
+            try
+            {
+                foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    File.SetCreationTimeUtc(file, created);
+                    File.SetLastWriteTimeUtc(file, updated);
+                }
+
+                // Directories last: writing a file inside one updates its own
+                // timestamp again, so stamping them first would be undone.
+                foreach (var dir in Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories))
+                {
+                    Directory.SetCreationTimeUtc(dir, created);
+                    Directory.SetLastWriteTimeUtc(dir, updated);
+                }
+
+                Directory.SetCreationTimeUtc(root, created);
+                Directory.SetLastWriteTimeUtc(root, updated);
+            }
+            catch (Exception ex)
+            {
+                // Not worth failing an installation over - the mod is on disk
+                logger.Warning($"Could not apply the workshop dates to {root}: {ex.Message}");
+            }
         }
 
         public static string GetInfoFilePath(Settings settings, string defaultTargetDir, WorkshopItem mod)
@@ -162,6 +283,13 @@ namespace WorkshopManager
                                 CultureInfo.InvariantCulture, out var updated))
                             {
                                 item.TimeUpdated = updated;
+                            }
+                            break;
+                        case "time created":
+                            if (long.TryParse(value, NumberStyles.Integer,
+                                CultureInfo.InvariantCulture, out var created))
+                            {
+                                item.TimeCreated = created;
                             }
                             break;
                     }
@@ -467,19 +595,31 @@ namespace WorkshopManager
                 // installed as its own subfolder named after the mod id.
                 string modsSubDir = Path.Combine(sourceDir, "mods");
 
+                string folderName = ModFolderName(settings, mod, gameTarget);
+                string installedTo = null;
+
                 await Task.Run(() =>
                 {
                     if (Directory.Exists(modsSubDir))
                     {
+                        // The mod brings its own layout; the folder names in
+                        // there are the game's business, not ours.
                         CopyDirectory(modsSubDir, gameTarget, cancellationToken);
                     }
                     else
                     {
-                        string destDir = Path.Combine(gameTarget, mod.ModId);
+                        string destDir = Path.Combine(gameTarget, folderName);
                         Directory.CreateDirectory(destDir);
                         CopyDirectory(sourceDir, destDir, cancellationToken);
+                        installedTo = destDir;
                     }
                 }, cancellationToken);
+
+                // Only meaningful for a mod we placed in a folder of our own.
+                if (installedTo != null && settings?.UseWorkshopDates == true)
+                {
+                    ApplyWorkshopDates(installedTo, mod);
+                }
 
                 string infoFile = Path.Combine(gameTarget, $"mod_{mod.ModId}.info");
                 // The description is archived here on purpose: once an item is
@@ -497,7 +637,11 @@ namespace WorkshopManager
                     $"Steam Workshop ID: {mod.ModId}\n" +
                     $"Game ID: {mod.AppId}\n" +
                     $"Title: {mod.Title}\n" +
+                    $"Folder: {folderName}\n" +
                     $"Time Updated: {mod.TimeUpdated}\n" +
+                    $"Time Updated (readable): {mod.TimeUpdatedText}\n" +
+                    $"Time Created: {mod.TimeCreated}\n" +
+                    $"Time Created (readable): {mod.TimeCreatedText}\n" +
                     $"Tags: {mod.Tags}\n" +
                     $"Preview Image: {mod.PreviewUrl}\n" +
                     $"Requirements Checked: {(mod.RequirementsChecked ? "yes" : "no")}\n" +

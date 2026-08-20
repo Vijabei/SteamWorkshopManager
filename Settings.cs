@@ -57,6 +57,19 @@ namespace WorkshopManager
         /// <summary>Version the user chose to skip; empty = none.</summary>
         public string SkippedUpdateVersion { get; set; } = "";
 
+        /// <summary>
+        /// "Id" or "Title". Mods install into a folder named after their
+        /// Workshop id by default, which is what most games expect. "Title"
+        /// produces readable folders for archiving instead.
+        /// </summary>
+        public string ModFolderNaming { get; set; } = "Id";
+
+        /// <summary>
+        /// Stamp installed files with the date the mod was published on the
+        /// Workshop instead of leaving the download time on them.
+        /// </summary>
+        public bool UseWorkshopDates { get; set; } = false;
+
         /// <summary>Per-game overrides keyed by app id.</summary>
         public Dictionary<string, GameRule> GameRules { get; set; } = new();
 
