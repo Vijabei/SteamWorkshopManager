@@ -69,6 +69,23 @@ git clone https://github.com/Vijabei/SteamWorkshopManager.git
 dotnet build
 ```
 
+## Releases
+
+Releases are built by GitHub Actions, not on a developer machine.
+
+1. Set `<Version>` in `WorkshopManager.csproj` (e.g. `1.3.0`, or `1.3.0-beta.1`
+   for a pre-release) and commit it.
+2. Tag the commit with the same version prefixed by `v` and push the tag:
+   `git tag v1.3.0 && git push origin v1.3.0`.
+3. The workflow builds on a clean runner, checks that tag, project file and
+   the version stamped into the executable all agree, and prepares the
+   release as a **draft**. A version suffix such as `-beta.1` marks it as a
+   pre-release automatically.
+4. Review the notes on GitHub and publish. Publishing is what makes installed
+   copies offer the update, so it is deliberately a separate step.
+
+If the tag and the project version disagree, the run fails before building.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
