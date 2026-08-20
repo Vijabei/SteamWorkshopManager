@@ -57,6 +57,12 @@ namespace WorkshopManager
         /// </summary>
         private static readonly HashSet<Control> hooked = new();
 
+        // A primary button has to be remembered: Apply() re-styles the whole
+        // control tree, and the EnabledChanged handler below repaints buttons
+        // from the palette. Without this the accent colour is lost the first
+        // time the button is disabled and re-enabled.
+        private static readonly HashSet<Button> primaryButtons = new();
+
         static Theme() => SetMode(ThemeMode.Dark);
 
         public static void SetMode(ThemeMode mode)
@@ -237,18 +243,29 @@ namespace WorkshopManager
         /// <summary>Flat accent button used for the main action.</summary>
         public static void StylePrimary(Button button)
         {
+            primaryButtons.Add(button);
+
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderSize = 0;
-            button.BackColor = Accent;
-            button.ForeColor = TextOnAccent;
             button.Font = BoldFont;
             button.Cursor = Cursors.Hand;
             button.FlatAppearance.MouseOverBackColor = AccentHover;
             button.FlatAppearance.MouseDownBackColor = AccentHover;
+
+            ApplyButtonState(button);
+            HookButtonState(button);
         }
 
         private static void StyleButton(Button button)
         {
+            // Apply() reaches every button, the primary one included. Painting
+            // it like an ordinary button would turn the call to action grey.
+            if (primaryButtons.Contains(button))
+            {
+                StylePrimary(button);
+                return;
+            }
+
             button.FlatStyle = FlatStyle.Flat;
             button.Font = BaseFont;
             button.Cursor = Cursors.Hand;
@@ -258,10 +275,16 @@ namespace WorkshopManager
             button.FlatAppearance.MouseDownBackColor = SurfaceAlt;
 
             ApplyButtonState(button);
+            HookButtonState(button);
+        }
 
-            // A disabled flat button is drawn in a washed out system grey that
-            // all but disappears on a dark surface, so the states are painted
-            // from the palette instead.
+        /// <summary>
+        /// A disabled flat button is drawn in a washed out system grey that
+        /// all but disappears on a dark surface, so the states are painted
+        /// from the palette instead.
+        /// </summary>
+        private static void HookButtonState(Button button)
+        {
             if (hooked.Add(button))
             {
                 button.EnabledChanged += (s, e) => ApplyButtonState((Button)s);
@@ -270,8 +293,10 @@ namespace WorkshopManager
 
         private static void ApplyButtonState(Button button)
         {
-            button.BackColor = button.Enabled ? Surface : Background;
-            button.ForeColor = button.Enabled ? Text : Muted;
+            var primary = primaryButtons.Contains(button);
+
+            button.BackColor = button.Enabled ? (primary ? Accent : Surface) : Background;
+            button.ForeColor = button.Enabled ? (primary ? TextOnAccent : Text) : Muted;
         }
 
         /// <summary>
