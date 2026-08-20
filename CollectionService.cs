@@ -157,7 +157,13 @@ namespace WorkshopManager
                 foreach (var id in batch)
                 {
                     byId.TryGetValue(id, out var d);
-                    bool ok = d != null && (int?)d["result"] == 1;
+                    int resultCode = d != null ? ((int?)d["result"] ?? 0) : 0;
+                    bool ok = resultCode == 1;
+
+                    // result 9 = not found: the item was deleted from the
+                    // Workshop. Banned items answer with result 1 and
+                    // banned = 1 instead - both mean "cannot be downloaded".
+                    bool notFound = resultCode == 9;
 
                     result.Add(new WorkshopItem
                     {
@@ -165,9 +171,17 @@ namespace WorkshopManager
                         AppId = ok
                             ? ((string)d["consumer_app_id"] ?? (string)d["creator_app_id"] ?? fallbackAppId)
                             : fallbackAppId,
-                        Title = ok ? ((string)d["title"] ?? $"Mod {id}") : $"Mod {id} (details unavailable)",
+                        Title = ok
+                            ? ((string)d["title"] ?? $"Mod {id}")
+                            : (notFound ? $"Mod {id} (gone from Steam)" : $"Mod {id} (details unavailable)"),
                         FileSize = ok ? ((long?)d["file_size"] ?? 0) : 0,
-                        TimeUpdated = ok ? ((long?)d["time_updated"] ?? 0) : 0
+                        TimeUpdated = ok ? ((long?)d["time_updated"] ?? 0) : 0,
+                        Description = ok ? ((string)d["description"] ?? "") : "",
+                        PreviewUrl = ok ? ((string)d["preview_url"] ?? "") : "",
+                        Tags = ok ? string.Join(", ", (d["tags"] as JArray ?? new JArray())
+                            .Select(t => (string)t["tag"]).Where(t => !string.IsNullOrEmpty(t))) : "",
+                        // The API sends banned as 0/1, not as a boolean.
+                        Banned = ok ? ((int?)d["banned"] ?? 0) != 0 : notFound
                     });
                 }
 

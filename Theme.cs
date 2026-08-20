@@ -1,0 +1,481 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
+namespace WorkshopManager
+{
+    public enum ThemeMode
+    {
+        Dark,
+        Light
+    }
+
+    /// <summary>
+    /// Central palette and control styling, kept in one place so the look can
+    /// be changed without touching the forms. Both palettes mirror the themes
+    /// of the softknight.de website and are chosen in the app - the system's
+    /// own dark mode setting is deliberately not consulted, so the app looks
+    /// the same everywhere.
+    ///
+    /// No colour here comes from SystemColors: those are fixed to the light
+    /// theme and would lose all contrast on a dark surface.
+    /// </summary>
+    public static class Theme
+    {
+        public static ThemeMode Mode { get; private set; } = ThemeMode.Dark;
+
+        // Surfaces
+        public static Color Background { get; private set; }
+        public static Color Surface { get; private set; }
+        public static Color SurfaceAlt { get; private set; }
+        public static Color SurfaceHover { get; private set; }
+        public static Color Border { get; private set; }
+
+        // Text
+        public static Color Text { get; private set; }
+        public static Color TextDim { get; private set; }
+        public static Color TextOnAccent { get; private set; }
+
+        // Accent and states - the SoftKnight green in both modes
+        public static Color Accent { get; private set; }
+        public static Color AccentHover { get; private set; }
+        public static Color Success { get; private set; }
+        public static Color Warning { get; private set; }
+        public static Color Error { get; private set; }
+        public static Color Muted { get; private set; }
+
+        public static readonly Font BaseFont = new("Segoe UI", 9F);
+        public static readonly Font BoldFont = new("Segoe UI", 9F, FontStyle.Bold);
+        public static readonly Font TitleFont = new("Segoe UI Semibold", 12F);
+        public static readonly Font SmallFont = new("Segoe UI", 8.25F);
+
+        /// <summary>
+        /// Controls whose owner-draw handlers are already attached. Applying a
+        /// theme twice must not subscribe the handlers twice.
+        /// </summary>
+        private static readonly HashSet<Control> hooked = new();
+
+        // A primary button has to be remembered: Apply() re-styles the whole
+        // control tree, and the EnabledChanged handler below repaints buttons
+        // from the palette. Without this the accent colour is lost the first
+        // time the button is disabled and re-enabled.
+        private static readonly HashSet<Button> primaryButtons = new();
+
+        static Theme() => SetMode(ThemeMode.Dark);
+
+        public static void SetMode(ThemeMode mode)
+        {
+            Mode = mode;
+
+            if (mode == ThemeMode.Dark)
+            {
+                // Neutral dark greys so the brand green stays the only strong colour
+                Background = Color.FromArgb(24, 24, 27);      // #18181B
+                Surface = Color.FromArgb(35, 35, 39);         // #232327
+                SurfaceAlt = Color.FromArgb(30, 30, 34);      // #1E1E22
+                SurfaceHover = Color.FromArgb(46, 46, 52);    // #2E2E34
+                Border = Color.FromArgb(63, 63, 70);          // #3F3F46
+
+                Text = Color.FromArgb(228, 228, 231);         // #E4E4E7
+                TextDim = Color.FromArgb(161, 161, 170);      // #A1A1AA
+                TextOnAccent = Color.FromArgb(16, 32, 18);
+
+                Accent = Color.FromArgb(92, 191, 96);         // #5CBF60
+                AccentHover = Color.FromArgb(111, 204, 115);  // #6FCC73
+                Success = Color.FromArgb(52, 211, 153);       // #34D399
+                Warning = Color.FromArgb(232, 197, 107);      // #E8C56B
+                Error = Color.FromArgb(248, 113, 113);        // #F87171
+                Muted = Color.FromArgb(140, 140, 150);
+            }
+            else
+            {
+                Background = Color.FromArgb(241, 241, 243);   // #F1F1F3
+                Surface = Color.FromArgb(250, 250, 251);      // #FAFAFB
+                SurfaceAlt = Color.FromArgb(255, 255, 255);   // #FFFFFF
+                SurfaceHover = Color.FromArgb(224, 238, 225); // #E0EEE1
+                Border = Color.FromArgb(206, 206, 212);       // #CECED4
+
+                Text = Color.FromArgb(31, 32, 35);            // #1F2023
+                TextDim = Color.FromArgb(90, 95, 102);        // #5A5F66
+                TextOnAccent = Color.White;
+
+                Accent = Color.FromArgb(76, 175, 80);         // #4CAF50
+                AccentHover = Color.FromArgb(69, 160, 73);    // #45A049
+                Success = Color.FromArgb(30, 126, 66);        // #1E7E42
+                Warning = Color.FromArgb(140, 105, 10);       // #8C690A
+                Error = Color.FromArgb(190, 40, 40);          // #BE2828
+                Muted = Color.FromArgb(122, 128, 136);
+            }
+        }
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ShowScrollBar(IntPtr hwnd, int bar, bool show);
+
+        private const int DwmwaUseImmersiveDarkMode = 20;
+        private const int SbHorz = 0;
+
+        /// <summary>
+        /// Matches the window chrome to the current mode. Supported from
+        /// Windows 10 1809 on; silently ignored elsewhere, which only leaves
+        /// the title bar in the system's own colour.
+        /// </summary>
+        public static void ApplyTitleBar(Form form)
+        {
+            try
+            {
+                int dark = Mode == ThemeMode.Dark ? 1 : 0;
+                DwmSetWindowAttribute(form.Handle, DwmwaUseImmersiveDarkMode, ref dark, sizeof(int));
+            }
+            catch
+            {
+                // Cosmetic only - never let this break startup
+            }
+        }
+
+        /// <summary>
+        /// Styles a control and everything below it. Safe to call again after
+        /// a mode change: everything it sets is overwritten, and the owner-draw
+        /// handlers are only attached once.
+        /// </summary>
+        public static void Apply(Control control)
+        {
+            switch (control)
+            {
+                // Styles itself, including per-state label colours that the
+                // generic rules below would flatten.
+                case ModDetailPanel:
+                    return;
+
+                case Form form:
+                    form.BackColor = Background;
+                    form.ForeColor = Text;
+                    form.Font = BaseFont;
+                    break;
+
+                case Button button:
+                    StyleButton(button);
+                    return; // no children worth styling
+
+                case TextBox textBox:
+                    textBox.BackColor = SurfaceAlt;
+                    textBox.ForeColor = Text;
+                    textBox.BorderStyle = BorderStyle.FixedSingle;
+                    if (textBox is HintTextBox hint) hint.HintColor = TextDim;
+                    break;
+
+                // Deliberately left at the system FlatStyle: a flat check box
+                // renders its tick in the fore colour and becomes invisible
+                // on a dark surface.
+                case CheckBox checkBox:
+                    checkBox.ForeColor = Text;
+                    checkBox.BackColor = Color.Transparent;
+                    break;
+
+                case Label label:
+                    label.ForeColor = label.Font.Bold ? Text : TextDim;
+                    label.BackColor = Color.Transparent;
+                    break;
+
+                // No border: WinForms draws FixedSingle in a system colour,
+                // which shows up as a light frame on the dark surface.
+                case ListView listView:
+                    listView.BackColor = SurfaceAlt;
+                    listView.ForeColor = Text;
+                    listView.BorderStyle = BorderStyle.None;
+                    break;
+
+                case ComboBox combo:
+                    combo.FlatStyle = FlatStyle.Flat;
+                    combo.BackColor = SurfaceAlt;
+                    combo.ForeColor = Text;
+                    break;
+
+                case NumericUpDown numeric:
+                    numeric.BackColor = SurfaceAlt;
+                    numeric.ForeColor = Text;
+                    numeric.BorderStyle = BorderStyle.FixedSingle;
+                    break;
+
+                case ProgressBar progressBar:
+                    progressBar.BackColor = SurfaceAlt;
+                    progressBar.ForeColor = Accent;
+                    break;
+
+                case TabControl tabControl:
+                    StyleTabControl(tabControl);
+                    break;
+
+                case TabPage tabPage:
+                    tabPage.BackColor = Background;
+                    tabPage.ForeColor = Text;
+                    break;
+
+                // Must come before Panel: the halves keep the colours the
+                // SplitContainer case gives them, but still get styled inside.
+                case SplitterPanel:
+                    break;
+
+                // Covers TableLayoutPanel and FlowLayoutPanel as well, both
+                // derive from Panel.
+                case Panel panel:
+                    panel.BackColor = Color.Transparent;
+                    break;
+
+                case SplitContainer split:
+                    split.BackColor = Border;
+                    split.Panel1.BackColor = Background;
+                    split.Panel2.BackColor = Surface;
+                    break;
+            }
+
+            foreach (Control child in control.Controls)
+            {
+                Apply(child);
+            }
+        }
+
+        /// <summary>Flat accent button used for the main action.</summary>
+        public static void StylePrimary(Button button)
+        {
+            primaryButtons.Add(button);
+
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.Font = BoldFont;
+            button.Cursor = Cursors.Hand;
+            button.FlatAppearance.MouseOverBackColor = AccentHover;
+            button.FlatAppearance.MouseDownBackColor = AccentHover;
+
+            ApplyButtonState(button);
+            HookButtonState(button);
+        }
+
+        private static void StyleButton(Button button)
+        {
+            // Apply() reaches every button, the primary one included. Painting
+            // it like an ordinary button would turn the call to action grey.
+            if (primaryButtons.Contains(button))
+            {
+                StylePrimary(button);
+                return;
+            }
+
+            button.FlatStyle = FlatStyle.Flat;
+            button.Font = BaseFont;
+            button.Cursor = Cursors.Hand;
+            button.FlatAppearance.BorderColor = Border;
+            button.FlatAppearance.BorderSize = 1;
+            button.FlatAppearance.MouseOverBackColor = SurfaceHover;
+            button.FlatAppearance.MouseDownBackColor = SurfaceAlt;
+
+            ApplyButtonState(button);
+            HookButtonState(button);
+        }
+
+        /// <summary>
+        /// A disabled flat button is drawn in a washed out system grey that
+        /// all but disappears on a dark surface, so the states are painted
+        /// from the palette instead.
+        /// </summary>
+        private static void HookButtonState(Button button)
+        {
+            if (hooked.Add(button))
+            {
+                button.EnabledChanged += (s, e) => ApplyButtonState((Button)s);
+            }
+        }
+
+        private static void ApplyButtonState(Button button)
+        {
+            var primary = primaryButtons.Contains(button);
+
+            button.BackColor = button.Enabled ? (primary ? Accent : Surface) : Background;
+            button.ForeColor = button.Enabled ? (primary ? TextOnAccent : Text) : Muted;
+        }
+
+        /// <summary>
+        /// Colours a context menu. Menus render in system colours otherwise,
+        /// which means a bright popup over the dark window.
+        /// </summary>
+        public static void StyleMenu(ToolStripDropDown menu)
+        {
+            menu.BackColor = Surface;
+            menu.ForeColor = Text;
+            menu.Renderer = new ToolStripProfessionalRenderer(new MenuColours());
+        }
+
+        private sealed class MenuColours : ProfessionalColorTable
+        {
+            public override Color ToolStripDropDownBackground => Surface;
+            public override Color MenuItemSelected => SurfaceHover;
+            public override Color MenuItemSelectedGradientBegin => SurfaceHover;
+            public override Color MenuItemSelectedGradientEnd => SurfaceHover;
+            public override Color MenuItemBorder => Accent;
+            public override Color MenuBorder => Border;
+            public override Color ImageMarginGradientBegin => Surface;
+            public override Color ImageMarginGradientMiddle => Surface;
+            public override Color ImageMarginGradientEnd => Surface;
+            public override Color SeparatorDark => Border;
+            public override Color SeparatorLight => Border;
+        }
+
+        /// <summary>
+        /// Widens the last column to the right edge. The header strip beyond
+        /// the last column is drawn by the native header control in system
+        /// colours and cannot be painted over, so it is removed instead.
+        /// Call again after filling the list: the vertical scroll bar only
+        /// appears then, and it takes width away from the client area.
+        /// </summary>
+        public static void StretchLastColumn(ListView listView)
+        {
+            if (listView.Columns.Count == 0) return;
+
+            var used = 0;
+            for (int i = 0; i < listView.Columns.Count - 1; i++)
+            {
+                used += listView.Columns[i].Width;
+            }
+
+            var last = listView.Columns[listView.Columns.Count - 1];
+
+            // A few pixels short of the client area: filling it exactly makes
+            // the control add a horizontal scroll bar.
+            var width = listView.ClientSize.Width - used - 4;
+
+            // The equality check also breaks the recursion through
+            // ColumnWidthChanged that setting the width would otherwise cause.
+            if (width >= 60 && width != last.Width) last.Width = width;
+
+            // The last column always fills the remaining space, so horizontal
+            // scrolling is never needed - but the control still shows the bar
+            // in system colours while it settles. Hide it outright.
+            if (listView.IsHandleCreated) ShowScrollBar(listView.Handle, SbHorz, false);
+        }
+
+        /// <summary>
+        /// Owner-draws the tab strip and paints over the light 3D frame the
+        /// control puts around the page area, which no property can turn off.
+        /// </summary>
+        public static void StyleTabControl(TabControl tabs)
+        {
+            tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
+            tabs.SizeMode = TabSizeMode.Fixed;
+            tabs.ItemSize = new Size(150, 30);
+            tabs.BackColor = Background;
+
+            if (!hooked.Add(tabs)) return;
+
+            tabs.DrawItem += (s, e) =>
+            {
+                bool selected = e.Index == tabs.SelectedIndex;
+
+                using var background = new SolidBrush(selected ? Background : SurfaceAlt);
+                e.Graphics.FillRectangle(background, e.Bounds);
+
+                if (selected)
+                {
+                    using var underline = new SolidBrush(Accent);
+                    e.Graphics.FillRectangle(underline, e.Bounds.Left, e.Bounds.Bottom - 3,
+                        e.Bounds.Width, 3);
+                }
+
+                TextRenderer.DrawText(e.Graphics, tabs.TabPages[e.Index].Text,
+                    selected ? BoldFont : BaseFont, e.Bounds, selected ? Text : TextDim,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            };
+
+            tabs.Paint += (s, e) =>
+            {
+                var client = tabs.ClientRectangle;
+
+                // Strip area to the right of the last tab
+                var lastTab = tabs.TabCount > 0
+                    ? tabs.GetTabRect(tabs.TabCount - 1)
+                    : Rectangle.Empty;
+                using var fill = new SolidBrush(Background);
+                e.Graphics.FillRectangle(fill, lastTab.Right, client.Top,
+                    client.Width - lastTab.Right, tabs.ItemSize.Height + 4);
+
+                // Erase the frame around the page
+                var top = tabs.ItemSize.Height + 2;
+                using var eraser = new Pen(Background, 4);
+                e.Graphics.DrawRectangle(eraser, client.Left + 1, top,
+                    client.Width - 3, client.Height - top - 3);
+            };
+        }
+
+        /// <summary>
+        /// Hooks owner drawing on a details ListView so header and rows follow
+        /// the palette. WinForms draws both in system colours otherwise, which
+        /// leaves a bright header on a dark list.
+        /// </summary>
+        public static void StyleListView(ListView listView)
+        {
+            listView.OwnerDraw = true;
+            listView.FullRowSelect = true;
+            listView.GridLines = false;
+
+            if (!hooked.Add(listView)) return;
+
+            listView.DrawColumnHeader += (s, e) =>
+            {
+                using var background = new SolidBrush(Surface);
+                e.Graphics.FillRectangle(background, e.Bounds);
+
+                using var separator = new Pen(Border);
+                e.Graphics.DrawLine(separator, e.Bounds.Right - 1, e.Bounds.Top + 4,
+                    e.Bounds.Right - 1, e.Bounds.Bottom - 4);
+                e.Graphics.DrawLine(separator, e.Bounds.Left, e.Bounds.Bottom - 1,
+                    e.Bounds.Right, e.Bounds.Bottom - 1);
+
+                TextRenderer.DrawText(e.Graphics, e.Header.Text, BoldFont,
+                    Rectangle.Inflate(e.Bounds, -8, 0), TextDim,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            };
+
+            listView.DrawSubItem += (s, e) =>
+            {
+                bool selected = e.Item.Selected;
+                var rowColor = selected
+                    ? SurfaceHover
+                    : (e.ItemIndex % 2 == 0 ? SurfaceAlt : Background);
+
+                using var background = new SolidBrush(rowColor);
+                e.Graphics.FillRectangle(background, e.Bounds);
+
+                if (selected && e.ColumnIndex == 0)
+                {
+                    using var marker = new SolidBrush(Accent);
+                    e.Graphics.FillRectangle(marker, e.Bounds.Left, e.Bounds.Top, 3, e.Bounds.Height);
+                }
+
+                var text = e.ColumnIndex == 0 ? e.Item.Text : e.SubItem.Text;
+                var color = e.Item.ForeColor.IsEmpty ? Text : e.Item.ForeColor;
+
+                var bounds = Rectangle.Inflate(e.Bounds, -8, 0);
+                if (selected && e.ColumnIndex == 0) bounds.X += 3;
+
+                TextRenderer.DrawText(e.Graphics, text, BaseFont, bounds, color,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            };
+
+            // Nothing extra to paint per item; sub item drawing covers the row.
+            listView.DrawItem += (s, e) => { };
+
+            // The header is a native child window, so painting over the strip
+            // right of the last column does not work - it gets redrawn in
+            // system colours. Stretching the last column to the edge removes
+            // the strip altogether.
+            // ClientSizeChanged, not SizeChanged: the usable width also shrinks
+            // when the vertical scroll bar appears, without the control resizing.
+            listView.ClientSizeChanged += (s, e) => StretchLastColumn(listView);
+            listView.ColumnWidthChanged += (s, e) => StretchLastColumn(listView);
+        }
+    }
+}

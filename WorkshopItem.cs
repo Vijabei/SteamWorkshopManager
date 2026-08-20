@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace WorkshopManager
 {
@@ -9,7 +11,10 @@ namespace WorkshopManager
         Installed,
         UpdateAvailable,
         Skipped,
-        Failed
+        Failed,
+
+        /// <summary>No longer available on the Workshop (banned/removed).</summary>
+        Removed
     }
 
     /// <summary>
@@ -26,18 +31,103 @@ namespace WorkshopManager
         /// <summary>Unix timestamp of the last workshop update, 0 if unknown.</summary>
         public long TimeUpdated { get; set; }
 
+        /// <summary>Workshop description. Archived locally so it survives
+        /// the item being removed from the Workshop.</summary>
+        public string Description { get; set; } = "";
+
+        /// <summary>Workshop tags, comma separated. Includes the supported
+        /// game versions for many games.</summary>
+        public string Tags { get; set; } = "";
+
+        /// <summary>URL of the preview image, empty if unknown.</summary>
+        public string PreviewUrl { get; set; } = "";
+
+        /// <summary>
+        /// True if the item is no longer obtainable from the Workshop -
+        /// either banned by Valve or deleted by its author.
+        /// </summary>
+        public bool Banned { get; set; }
+
+        /// <summary>Workshop items this mod declares as required.</summary>
+        public List<ModRequirement> RequiredMods { get; set; } = new();
+
+        /// <summary>Steam DLC this mod declares as required.</summary>
+        public List<ModRequirement> RequiredDlc { get; set; } = new();
+
+        /// <summary>
+        /// True once the requirements were looked up, so an empty list can be
+        /// told apart from "not checked yet".
+        /// </summary>
+        public bool RequirementsChecked { get; set; }
+
+        /// <summary>
+        /// Compact requirement summary for the list column. Empty while the
+        /// requirements have not been looked up, so "checked and none" stays
+        /// distinguishable from "not checked".
+        /// </summary>
+        public string RequirementsText
+        {
+            get
+            {
+                if (!RequirementsChecked) return "";
+                if (RequiredMods.Count == 0 && RequiredDlc.Count == 0) return "-";
+
+                var parts = new List<string>();
+                if (RequiredMods.Count > 0)
+                {
+                    parts.Add(string.Join(", ", RequiredMods.Select(r => r.Name)));
+                }
+                if (RequiredDlc.Count > 0)
+                {
+                    parts.Add("DLC: " + string.Join(", ", RequiredDlc.Select(r => r.Name)));
+                }
+
+                return string.Join("  -  ", parts);
+            }
+        }
+
+        /// <summary>Workshop page of this item.</summary>
+        public string WorkshopUrl => $"https://steamcommunity.com/sharedfiles/filedetails/?id={ModId}";
+
         public WorkshopItemStatus Status { get; set; } = WorkshopItemStatus.Pending;
 
-        public string StatusText => Status switch
+        public string StatusText
         {
-            WorkshopItemStatus.Pending => "Pending",
-            WorkshopItemStatus.Downloading => "Downloading...",
-            WorkshopItemStatus.Installed => "Installed",
-            WorkshopItemStatus.UpdateAvailable => "Update available",
-            WorkshopItemStatus.Skipped => "Skipped (installed)",
-            WorkshopItemStatus.Failed => "Failed",
-            _ => Status.ToString()
-        };
+            get
+            {
+                var text = Status switch
+                {
+                    WorkshopItemStatus.Pending => "Pending",
+                    WorkshopItemStatus.Downloading => "Downloading...",
+                    WorkshopItemStatus.Installed => "Installed",
+                    WorkshopItemStatus.UpdateAvailable => "Update available",
+                    WorkshopItemStatus.Skipped => "Skipped (installed)",
+                    WorkshopItemStatus.Failed => "Failed",
+                    WorkshopItemStatus.Removed => "Removed from Steam",
+                    _ => Status.ToString()
+                };
+
+                // A local copy of an item that is gone from the Workshop is
+                // exactly the archival case this metadata exists for.
+                return Banned && Status != WorkshopItemStatus.Removed
+                    ? $"{text} - gone from Steam"
+                    : text;
+            }
+        }
+
+        /// <summary>True if the given text occurs in any searchable field.</summary>
+        public bool Matches(string needle)
+        {
+            if (string.IsNullOrWhiteSpace(needle)) return true;
+
+            return Contains(Title, needle)
+                || Contains(ModId, needle)
+                || Contains(Tags, needle)
+                || Contains(Description, needle);
+
+            static bool Contains(string haystack, string value) =>
+                haystack != null && haystack.Contains(value, StringComparison.OrdinalIgnoreCase);
+        }
 
         public string FileSizeText
         {

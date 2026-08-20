@@ -109,6 +109,131 @@ namespace WorkshopManager
             return null;
         }
 
+        /// <summary>
+        /// Reads a mod_&lt;id&gt;.info file back into a WorkshopItem.
+        /// Returns null if the file carries no workshop id. Tolerates the
+        /// shorter info files written by earlier versions, which have no
+        /// tags, preview URL or description.
+        /// </summary>
+        public static WorkshopItem ReadInfoFile(string infoFilePath)
+        {
+            try
+            {
+                var item = new WorkshopItem { Status = WorkshopItemStatus.Installed };
+                var description = new List<string>();
+                bool inDescription = false;
+
+                foreach (var line in File.ReadAllLines(infoFilePath))
+                {
+                    if (line.StartsWith("# Description", StringComparison.OrdinalIgnoreCase))
+                    {
+                        inDescription = true;
+                        continue;
+                    }
+
+                    if (inDescription)
+                    {
+                        description.Add(line);
+                        continue;
+                    }
+
+                    // Split on the first colon only - values such as the
+                    // preview URL contain colons themselves.
+                    int separator = line.IndexOf(':');
+                    if (separator < 0 || line.StartsWith("#")) continue;
+
+                    var key = line.Substring(0, separator).Trim();
+                    var value = line.Substring(separator + 1).Trim();
+
+                    switch (key.ToLowerInvariant())
+                    {
+                        case "steam workshop id": item.ModId = value; break;
+                        case "game id": item.AppId = value; break;
+                        case "title": item.Title = value; break;
+                        case "tags": item.Tags = value; break;
+                        case "preview image": item.PreviewUrl = value; break;
+                        case "requires mod": AddRequirement(item.RequiredMods, value); break;
+                        case "requires dlc": AddRequirement(item.RequiredDlc, value); break;
+                        case "requirements checked":
+                            item.RequirementsChecked = value.Equals("yes", StringComparison.OrdinalIgnoreCase);
+                            break;
+                        case "time updated":
+                            if (long.TryParse(value, NumberStyles.Integer,
+                                CultureInfo.InvariantCulture, out var updated))
+                            {
+                                item.TimeUpdated = updated;
+                            }
+                            break;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(item.ModId)) return null;
+
+                item.Description = string.Join(Environment.NewLine, description).Trim();
+                if (string.IsNullOrEmpty(item.Title)) item.Title = $"Mod {item.ModId}";
+
+                return item;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Parses an "id|name" requirement line from an info file.</summary>
+        private static void AddRequirement(List<ModRequirement> target, string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+
+            var parts = value.Split('|', 2);
+            var id = parts[0].Trim();
+            if (id.Length == 0) return;
+
+            target.Add(new ModRequirement
+            {
+                Id = id,
+                Name = parts.Length > 1 ? parts[1].Trim() : ""
+            });
+        }
+
+        /// <summary>
+        /// Collects every mod installed under the configured target
+        /// directories by reading the mod_&lt;id&gt;.info files written at
+        /// install time. Works entirely offline.
+        /// </summary>
+        public static List<WorkshopItem> LoadInstalledMods(Settings settings, string defaultTargetDir)
+        {
+            var directories = new List<string>();
+            if (!string.IsNullOrWhiteSpace(defaultTargetDir)) directories.Add(defaultTargetDir);
+
+            if (settings?.GameRules != null)
+            {
+                foreach (var rule in settings.GameRules.Values)
+                {
+                    if (!string.IsNullOrWhiteSpace(rule?.TargetDirectory))
+                    {
+                        directories.Add(rule.TargetDirectory);
+                    }
+                }
+            }
+
+            var mods = new List<WorkshopItem>();
+            var seen = new HashSet<string>();
+
+            foreach (var directory in directories.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!Directory.Exists(directory)) continue;
+
+                foreach (var file in Directory.EnumerateFiles(directory, "mod_*.info"))
+                {
+                    var item = ReadInfoFile(file);
+                    if (item != null && seen.Add(item.ModId)) mods.Add(item);
+                }
+            }
+
+            return mods;
+        }
+
         public async Task<InstallationResult> InstallModsAsync(
             IReadOnlyList<WorkshopItem> mods,
             InstallationOptions options,
@@ -354,6 +479,15 @@ namespace WorkshopManager
                 }, cancellationToken);
 
                 string infoFile = Path.Combine(gameTarget, $"mod_{mod.ModId}.info");
+                // The description is archived here on purpose: once an item is
+                // removed from the Workshop its metadata can no longer be
+                // fetched, so it has to be captured at install time.
+                // One line per requirement keeps names containing separators
+                // harmless and makes the file readable by hand.
+                string requirementLines =
+                    string.Concat(mod.RequiredMods.Select(r => $"Requires Mod: {r.Id}|{r.Name}\n")) +
+                    string.Concat(mod.RequiredDlc.Select(r => $"Requires DLC: {r.Id}|{r.Name}\n"));
+
                 await File.WriteAllTextAsync(
                     infoFile,
                     "# Mod Info\n" +
@@ -361,7 +495,13 @@ namespace WorkshopManager
                     $"Game ID: {mod.AppId}\n" +
                     $"Title: {mod.Title}\n" +
                     $"Time Updated: {mod.TimeUpdated}\n" +
-                    $"Installation Date: {DateTime.Now}",
+                    $"Tags: {mod.Tags}\n" +
+                    $"Preview Image: {mod.PreviewUrl}\n" +
+                    $"Requirements Checked: {(mod.RequirementsChecked ? "yes" : "no")}\n" +
+                    requirementLines +
+                    $"Installation Date: {DateTime.Now}\n" +
+                    "\n# Description\n" +
+                    mod.Description,
                     cancellationToken
                 );
 

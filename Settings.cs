@@ -40,9 +40,19 @@ namespace WorkshopManager
         // Internal browser
         public string BrowserHomeUrl { get; set; } = "https://steamcommunity.com/workshop/";
 
+        /// <summary>"Dark" or "Light". Chosen in the app, independent of the
+        /// system's own dark mode setting.</summary>
+        public string Theme { get; set; } = "Dark";
+
         // Auto-update
         /// <summary>Check GitHub for a newer release on startup.</summary>
         public bool CheckForUpdates { get; set; } = true;
+
+        /// <summary>
+        /// "Stable" or "Beta". On the beta channel pre-releases are offered
+        /// too, so testers get new builds without a manual download.
+        /// </summary>
+        public string UpdateChannel { get; set; } = "Stable";
 
         /// <summary>Version the user chose to skip; empty = none.</summary>
         public string SkippedUpdateVersion { get; set; } = "";

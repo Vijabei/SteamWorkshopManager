@@ -9,13 +9,19 @@ A Windows application designed to simplify the installation and management of St
 
 ## Features
 
-- 🔄 Automatic updates — the app checks GitHub for new versions and updates itself with one click
+- 🔄 Automatic updates — the app checks GitHub for new versions and updates itself with one click, on a stable or beta channel
 - 🌐 Built-in Steam Workshop browser (WebView2) — browse collections and mods, import them with one click
 - 📦 Local collection processing via the official Steam Web API (nested collections supported, no scraping)
 - 👤 Import your subscribed items from your Steam profile (all pages, using your own browser session)
 - ⬇️ One-click SteamCMD download and setup
 - 🔁 Batched downloads with automatic retries — reliable even for large collections
 - 🔍 Mod list with titles, sizes, update dates, and installed/update-available status
+- 🖼️ Detail pane per mod — preview image, tags and the full Workshop description, rendered from Steam's BBCode instead of showing raw markup
+- 🔗 Required mods and required DLC are detected and listed, and every requirement links straight into the built-in browser
+- 📚 Mod library — title, description, tags and preview of every mod you ever installed are kept locally, so the details survive a mod being removed from the Workshop
+- 📤 Export the library as Markdown files (one per mod, with YAML front matter) for your own notes or a server wiki
+- 🎨 Dark and light theme, switchable at any time
+- ⚙️ Settings dialog for SteamCMD, install folder, batch size, retries and update channel
 - ⏭️ Skips already installed mods (optional) and detects available updates
 - 📊 Real-time progress tracking and cancellable operations
 - 🧹 Optional cleanup of raw workshop files after installation (all games in the run)
@@ -35,7 +41,7 @@ SteamCMD is **not** required upfront — the app can download and set it up for 
 
 1. Download the latest release from the [releases page](https://github.com/Vijabei/SteamWorkshopManager/releases)
 2. Extract the files to your desired location and run `WorkshopManager.exe`
-3. On the **Mods & Install** tab, set the SteamCMD path (or click **Get SteamCMD**) and choose your mod install folder
+3. Open **Settings...** (bottom bar), click **Download it for me** to fetch SteamCMD — or point to an existing `steamcmd.exe` — and choose your mod install folder
 4. Add mods in one of three ways:
    - Browse the Workshop on the **Workshop Browser** tab and click **Add this collection / mod to list**
    - Paste a collection/mod URL or id into the **Add mods** field

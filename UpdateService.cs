@@ -14,12 +14,15 @@ namespace WorkshopManager
 {
     public class UpdateInfo
     {
-        public Version CurrentVersion { get; set; }
-        public Version LatestVersion { get; set; }
+        public SemanticVersion CurrentVersion { get; set; }
+        public SemanticVersion LatestVersion { get; set; }
         public string ReleaseName { get; set; } = "";
         public string ReleasePageUrl { get; set; } = "";
         public string ZipDownloadUrl { get; set; } = "";
-        public bool UpdateAvailable => LatestVersion > CurrentVersion;
+        public bool IsPreRelease { get; set; }
+
+        public bool UpdateAvailable =>
+            LatestVersion != null && LatestVersion.CompareTo(CurrentVersion) > 0;
     }
 
     /// <summary>
@@ -30,8 +33,14 @@ namespace WorkshopManager
     /// </summary>
     public class UpdateService
     {
+        // /releases/latest deliberately excludes pre-releases, which is exactly
+        // what the stable channel needs. The beta channel has to look at the
+        // full list and pick the highest version itself.
         private const string LatestReleaseUrl =
             "https://api.github.com/repos/Vijabei/SteamWorkshopManager/releases/latest";
+
+        private const string AllReleasesUrl =
+            "https://api.github.com/repos/Vijabei/SteamWorkshopManager/releases?per_page=30";
 
         private static readonly HttpClient http = CreateClient();
 
@@ -44,11 +53,23 @@ namespace WorkshopManager
             return client;
         }
 
-        public static Version GetCurrentVersion()
+        /// <summary>
+        /// Reads the informational version, which keeps the "-beta.N" suffix.
+        /// The assembly version drops it, so two betas of the same release
+        /// would look identical and no beta update would ever be detected.
+        /// </summary>
+        public static SemanticVersion GetCurrentVersion()
         {
-            var version = Assembly.GetExecutingAssembly().GetName().Version;
-            // Normalize to 3 components so 1.1.0.0 == tag v1.1.0
-            return new Version(version.Major, version.Minor, version.Build < 0 ? 0 : version.Build);
+            var informational = Assembly.GetExecutingAssembly()
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+            if (SemanticVersion.TryParse(informational, out var parsed)) return parsed;
+
+            var assemblyVersion = Assembly.GetExecutingAssembly().GetName().Version;
+            SemanticVersion.TryParse(
+                assemblyVersion.Major + "." + assemblyVersion.Minor + "." + Math.Max(0, assemblyVersion.Build),
+                out var fallback);
+            return fallback;
         }
 
         /// <summary>
@@ -85,29 +106,75 @@ namespace WorkshopManager
             }
         }
 
-        public async Task<UpdateInfo> CheckForUpdateAsync(CancellationToken cancellationToken)
+        /// <summary>
+        /// Looks for a newer release. On the beta channel pre-releases count
+        /// too, so the newest build wins even when it is a beta.
+        /// </summary>
+        public async Task<UpdateInfo> CheckForUpdateAsync(bool includePreReleases, CancellationToken cancellationToken)
+        {
+            var current = GetCurrentVersion();
+
+            var release = includePreReleases
+                ? await FindNewestReleaseAsync(cancellationToken)
+                : await GetStableReleaseAsync(cancellationToken);
+
+            if (release == null) return new UpdateInfo { CurrentVersion = current };
+
+            var info = Describe(release);
+            info.CurrentVersion = current;
+            return info;
+        }
+
+        private async Task<JObject> GetStableReleaseAsync(CancellationToken cancellationToken)
         {
             using var response = await http.GetAsync(LatestReleaseUrl, cancellationToken);
             response.EnsureSuccessStatusCode();
+            return JObject.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        }
 
-            var json = JObject.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        private async Task<JObject> FindNewestReleaseAsync(CancellationToken cancellationToken)
+        {
+            using var response = await http.GetAsync(AllReleasesUrl, cancellationToken);
+            response.EnsureSuccessStatusCode();
 
-            string tag = ((string)json["tag_name"] ?? "").TrimStart('v', 'V');
-            if (!Version.TryParse(tag, out var latest))
+            var releases = JArray.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+
+            JObject newest = null;
+            SemanticVersion newestVersion = null;
+
+            foreach (var entry in releases.OfType<JObject>())
             {
-                throw new Exception($"Unexpected release tag format: {json["tag_name"]}");
+                if ((bool?)entry["draft"] == true) continue;
+                if (!SemanticVersion.TryParse((string)entry["tag_name"], out var version)) continue;
+
+                if (newestVersion == null || version.CompareTo(newestVersion) > 0)
+                {
+                    newest = entry;
+                    newestVersion = version;
+                }
             }
 
-            var zipAsset = (json["assets"] as JArray)?
+            return newest;
+        }
+
+        private static UpdateInfo Describe(JObject release)
+        {
+            var tag = (string)release["tag_name"] ?? "";
+            if (!SemanticVersion.TryParse(tag, out var version))
+            {
+                throw new Exception("Unexpected release tag format: " + tag);
+            }
+
+            var zipAsset = (release["assets"] as JArray)?
                 .FirstOrDefault(a => ((string)a["name"] ?? "").EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
 
             return new UpdateInfo
             {
-                CurrentVersion = GetCurrentVersion(),
-                LatestVersion = new Version(latest.Major, latest.Minor, latest.Build < 0 ? 0 : latest.Build),
-                ReleaseName = (string)json["name"] ?? tag,
-                ReleasePageUrl = (string)json["html_url"] ?? "https://github.com/Vijabei/SteamWorkshopManager/releases",
-                ZipDownloadUrl = (string)zipAsset?["browser_download_url"] ?? ""
+                LatestVersion = version,
+                ReleaseName = (string)release["name"] ?? tag,
+                ReleasePageUrl = (string)release["html_url"] ?? "https://github.com/Vijabei/SteamWorkshopManager/releases",
+                ZipDownloadUrl = (string)zipAsset?["browser_download_url"] ?? "",
+                IsPreRelease = (bool?)release["prerelease"] == true
             };
         }
 
