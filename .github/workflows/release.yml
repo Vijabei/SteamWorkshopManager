@@ -1,14 +1,14 @@
 name: Build and release
 
 # Pushing a tag builds the release and prepares it as a draft.
-# Pushing to main only builds, so a broken build is noticed early.
 # "Run workflow" builds without touching releases - useful for a test build.
+#
+# Plain pushes are not built here: dotnet-desktop.yml already builds main
+# and every pull request, and running both would build the same commit twice.
 on:
   push:
     tags:
       - 'v*'
-    branches:
-      - main
   workflow_dispatch:
 
 # Needed to create the release. Nothing else is written.
