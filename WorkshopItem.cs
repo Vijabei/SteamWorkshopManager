@@ -122,6 +122,47 @@ namespace WorkshopManager
             }
         }
 
+        /// <summary>
+        /// Takes over what the Workshop reports about this item right now, as
+        /// returned by CollectionService.GetDetailsAsync. Returns false when
+        /// the lookup told us nothing, in which case the item is left as it was.
+        ///
+        /// Requirements are not touched: the details endpoint does not carry
+        /// them, so an empty list there would mean "unknown", not "none".
+        /// </summary>
+        public bool ApplyWorkshopDetails(WorkshopItem fresh)
+        {
+            if (fresh == null || fresh.ModId != ModId) return false;
+
+            // GetDetailsAsync only fills in a timestamp for a successful
+            // lookup, so it doubles as the "Steam answered" marker.
+            if (fresh.TimeUpdated > 0)
+            {
+                Title = fresh.Title;
+                FileSize = fresh.FileSize;
+                TimeUpdated = fresh.TimeUpdated;
+                TimeCreated = fresh.TimeCreated;
+                Description = fresh.Description;
+                Tags = fresh.Tags;
+                PreviewUrl = fresh.PreviewUrl;
+                Banned = fresh.Banned;
+                if (string.IsNullOrEmpty(AppId)) AppId = fresh.AppId;
+                return true;
+            }
+
+            // Deleted from the Workshop. Keep the title and description we
+            // already have - they are the archived copy, and the lookup only
+            // has a placeholder to offer.
+            if (fresh.Banned)
+            {
+                Banned = true;
+                return true;
+            }
+
+            // Any other failure: nothing learned, nothing changed.
+            return false;
+        }
+
         /// <summary>True if the given text occurs in any searchable field.</summary>
         public bool Matches(string needle)
         {

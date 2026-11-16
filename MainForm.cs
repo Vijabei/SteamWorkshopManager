@@ -530,7 +530,7 @@ namespace WorkshopManager
             clearListButton = new Button { Text = "Clear list", AutoSize = true, Margin = new Padding(3) };
             clearListButton.Click += ClearModList;
             checkInstalledButton = new Button { Text = "Check installed / updates", AutoSize = true, Margin = new Padding(3) };
-            checkInstalledButton.Click += (s, e) => RefreshInstalledStatus();
+            checkInstalledButton.Click += async (s, e) => await CheckForModUpdatesAsync();
             loadInstalledButton = new Button { Text = "Load installed library", AutoSize = true, Margin = new Padding(3) };
             loadInstalledButton.Click += LoadInstalledLibrary;
             checkRequirementsButton = new Button { Text = "Check requirements", AutoSize = true, Margin = new Padding(3) };
@@ -1454,8 +1454,94 @@ namespace WorkshopManager
         }
 
         /// <summary>
+        /// Asks Steam for the current version of every mod in the list, then
+        /// compares that against what is installed.
+        ///
+        /// RefreshInstalledStatus alone cannot find an update: it compares the
+        /// info file with the timestamp the mod had when it was added to the
+        /// list. A mod updated on the Workshop since then looks unchanged, and
+        /// one loaded from the installed library compares the info file with
+        /// itself. Only removing and re-adding the mod used to fetch the new
+        /// timestamp (issue #3).
+        /// </summary>
+        private async Task CheckForModUpdatesAsync()
+        {
+            var ids = modItems
+                .Select(m => m.ModId)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct()
+                .ToList();
+
+            if (ids.Count == 0)
+            {
+                RefreshInstalledStatus();
+                return;
+            }
+
+            SetControlsEnabled(false);
+            try
+            {
+                UpdateStatus($"Asking Steam for the current version of {ids.Count} mods...");
+
+                List<WorkshopItem> fresh = null;
+                try
+                {
+                    fresh = await collectionService.GetDetailsAsync(
+                        ids, CancellationToken.None, new Progress<string>(UpdateStatus));
+                }
+                catch (Exception ex)
+                {
+                    // Offline or Steam unavailable: still show what can be
+                    // known locally, but say that it may be out of date.
+                    logger.Warning($"Could not fetch the current mod details from Steam: {ex.Message}");
+                }
+
+                int refreshed = 0;
+                if (fresh != null)
+                {
+                    var byId = new Dictionary<string, WorkshopItem>();
+                    foreach (var item in fresh) byId[item.ModId] = item;
+
+                    foreach (var item in modItems)
+                    {
+                        if (byId.TryGetValue(item.ModId, out var current) &&
+                            item.ApplyWorkshopDetails(current))
+                        {
+                            refreshed++;
+                        }
+                    }
+                }
+
+                RefreshInstalledStatus();
+
+                // The detail pane shows the description and dates, which may
+                // just have changed for the selected mod.
+                ModListSelectionChanged(null, EventArgs.Empty);
+
+                int updates = modItems.Count(m => m.Status == WorkshopItemStatus.UpdateAvailable);
+                var summary = updates == 0 ? "no updates available" : $"{updates} update(s) available";
+
+                if (fresh == null)
+                {
+                    UpdateStatus($"Could not reach Steam - compared with the details from when the mods were added: {summary}");
+                }
+                else
+                {
+                    logger.Info($"Update check: {refreshed} of {ids.Count} mods refreshed from Steam, {summary}");
+                    UpdateStatus($"Checked {ids.Count} mods against Steam: {summary}");
+                }
+            }
+            finally
+            {
+                SetControlsEnabled(true);
+            }
+        }
+
+        /// <summary>
         /// Marks mods as installed / update available based on the
-        /// mod_&lt;id&gt;.info files in the target directory.
+        /// mod_&lt;id&gt;.info files in the target directory. Works with the
+        /// timestamps the list already holds - CheckForModUpdatesAsync
+        /// fetches fresh ones first.
         /// </summary>
         private void RefreshInstalledStatus()
         {

@@ -50,6 +50,13 @@ and what follows approval.
 
 The install path is now covered end to end (see below). Still unexercised:
 
+- **"Check installed / updates" asking Steam first** (issue #3). Built and
+  checked on Linux against the WinForms reference assemblies, and the merge
+  logic is covered by a throwaway harness. Not yet clicked in the real app on
+  Windows: add a mod, install it, wait for an update on the Workshop (or lower
+  `Time Updated` in its `mod_<id>.info` by hand) and press the button. The
+  row should turn to "Update available" without re-adding the mod.
+
 - the "Delete the raw SteamCMD downloads after installing" option
 - importing a legacy SteamCMD script via **Load script...**
 - a requirements check across a large collection (only 8 mods have been run)
