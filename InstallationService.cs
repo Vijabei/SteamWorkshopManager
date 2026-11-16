@@ -603,22 +603,35 @@ namespace WorkshopManager
                     if (Directory.Exists(modsSubDir))
                     {
                         // The mod brings its own layout; the folder names in
-                        // there are the game's business, not ours.
+                        // there are the game's business, not ours. Merged into
+                        // a shared folder, it cannot be replaced as a whole,
+                        // so files removed by an update stay behind here.
                         CopyDirectory(modsSubDir, gameTarget, cancellationToken);
                     }
                     else
                     {
                         string destDir = Path.Combine(gameTarget, folderName);
-                        Directory.CreateDirectory(destDir);
-                        CopyDirectory(sourceDir, destDir, cancellationToken);
+                        ReplaceDirectory(sourceDir, destDir, cancellationToken);
                         installedTo = destDir;
                     }
                 }, cancellationToken);
 
-                // Only meaningful for a mod we placed in a folder of our own.
-                if (installedTo != null && settings?.UseWorkshopDates == true)
+                // Everything below needs a folder of the mod's own. The order
+                // matters: extra files are added first, because creating a
+                // file changes its folder's date, and the dates come last.
+                if (installedTo != null)
                 {
-                    ApplyWorkshopDates(installedTo, mod);
+                    var preview = await AddArchiveExtrasAsync(installedTo, mod, cancellationToken);
+
+                    if (settings?.UseWorkshopDates == true)
+                    {
+                        ApplyWorkshopDates(installedTo, mod);
+
+                        // The picture has a date of its own - the day it was
+                        // uploaded - and that is the truer one for it.
+                        // Changing a file's date leaves its folder's alone.
+                        if (preview.Path != null) ImageCache.StampDate(preview.Path, preview.Uploaded);
+                    }
                 }
 
                 string infoFile = Path.Combine(gameTarget, $"mod_{mod.ModId}.info");
@@ -723,6 +736,164 @@ namespace WorkshopManager
                     logger.Error($"Failed to cleanup workshop content for game {gameId}: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Adds the optional archive files to a mod's folder: the preview
+        /// image and a shortcut to the Workshop page. Neither is worth
+        /// failing an installation over, so problems are only logged.
+        /// Returns where the preview went, so its date can be restored after
+        /// the folder has been stamped.
+        /// </summary>
+        private async Task<(string Path, DateTime? Uploaded)> AddArchiveExtrasAsync(
+            string modDir, WorkshopItem mod, CancellationToken cancellationToken)
+        {
+            (string Path, DateTime? Uploaded) preview = (null, null);
+
+            if (settings?.CreateWorkshopLink == true)
+            {
+                try
+                {
+                    await File.WriteAllTextAsync(
+                        Path.Combine(modDir, WorkshopLinkFileName),
+                        "[InternetShortcut]\r\nURL=" + mod.WorkshopUrl + "\r\n",
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    logger.Warning($"Could not create the Workshop link for mod {mod.ModId}: {ex.Message}");
+                }
+            }
+
+            if (settings?.SavePreviewImage == true)
+            {
+                if (string.IsNullOrWhiteSpace(mod.PreviewUrl))
+                {
+                    logger.Info($"Mod {mod.ModId} has no preview image to save");
+                }
+                else
+                {
+                    try
+                    {
+                        preview = await ImageCache.SaveOriginalAsync(mod.ModId, mod.PreviewUrl, modDir, cancellationToken);
+                        if (preview.Path == null)
+                        {
+                            logger.Warning($"The preview of mod {mod.ModId} is in a format that was not recognised; not saved");
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Warning($"Could not save the preview image of mod {mod.ModId}: {ex.Message}");
+                    }
+                }
+            }
+
+            return preview;
+        }
+
+        /// <summary>Name of the shortcut to the Workshop page in a mod folder.</summary>
+        public const string WorkshopLinkFileName = "Workshop page.url";
+
+        /// <summary>
+        /// Installs a fresh copy of a mod in place of the old one.
+        ///
+        /// Copying over the old folder would leave behind every file the
+        /// author removed in an update - a stale assembly is enough to break a
+        /// mod. The new copy is assembled beside the old one first and only
+        /// swapped in once it is complete, so a failed or cancelled copy
+        /// leaves the installed version untouched.
+        ///
+        /// Only call this for a folder that belongs to this one mod.
+        /// </summary>
+        private void ReplaceDirectory(string sourceDir, string destDir, CancellationToken cancellationToken)
+        {
+            var staging = destDir + ".installing";
+            var previous = destDir + ".previous";
+
+            // Left over from a run that was killed halfway
+            DeleteIfExists(staging);
+            DeleteIfExists(previous);
+
+            Directory.CreateDirectory(staging);
+            try
+            {
+                CopyDirectory(sourceDir, staging, cancellationToken);
+            }
+            catch
+            {
+                TryDelete(staging);
+                throw;
+            }
+
+            if (Directory.Exists(destDir))
+            {
+                // A rename either succeeds as a whole or not at all. Deleting
+                // first could stop halfway on a locked file - say, the game is
+                // running - and leave a half-deleted mod behind.
+                try
+                {
+                    Directory.Move(destDir, previous);
+                }
+                catch
+                {
+                    TryDelete(staging);
+                    throw;
+                }
+            }
+
+            try
+            {
+                Directory.Move(staging, destDir);
+            }
+            catch
+            {
+                // Put the old version back rather than leave nothing at all
+                if (Directory.Exists(previous) && !Directory.Exists(destDir)) Directory.Move(previous, destDir);
+                TryDelete(staging);
+                throw;
+            }
+
+            try
+            {
+                DeleteIfExists(previous);
+            }
+            catch (Exception ex)
+            {
+                // The new version is in place; the old copy is only clutter
+                logger.Warning($"Installed, but could not remove the previous version at {previous}: {ex.Message}");
+            }
+        }
+
+        private static void DeleteIfExists(string directory)
+        {
+            if (!Directory.Exists(directory)) return;
+
+            // Directory.Delete refuses read-only files, and mods occasionally
+            // ship some.
+            foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            {
+                var attributes = File.GetAttributes(file);
+                if ((attributes & FileAttributes.ReadOnly) != 0)
+                {
+                    File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+                }
+            }
+
+            Directory.Delete(directory, recursive: true);
+        }
+
+        /// <summary>Cleanup on an error path: must not hide the original error.</summary>
+        private static void TryDelete(string directory)
+        {
+            try { DeleteIfExists(directory); } catch { }
         }
 
         private void CopyDirectory(string sourceDir, string destinationDir, CancellationToken cancellationToken)

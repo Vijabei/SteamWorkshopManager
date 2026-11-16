@@ -70,6 +70,18 @@ namespace WorkshopManager
         /// </summary>
         public bool UseWorkshopDates { get; set; } = false;
 
+        /// <summary>
+        /// Put the Workshop preview image into each mod's folder, as the
+        /// original file Steam serves, so an archived mod carries its picture.
+        /// </summary>
+        public bool SavePreviewImage { get; set; } = false;
+
+        /// <summary>
+        /// Put a "Workshop page.url" shortcut into each mod's folder, so a
+        /// folder can be traced back to its Workshop page with a double click.
+        /// </summary>
+        public bool CreateWorkshopLink { get; set; } = false;
+
         /// <summary>Per-game overrides keyed by app id.</summary>
         public Dictionary<string, GameRule> GameRules { get; set; } = new();
 

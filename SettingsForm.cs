@@ -29,6 +29,8 @@ namespace WorkshopManager
         private readonly CheckBox checkUpdatesBox;
         private readonly ComboBox folderNamingCombo;
         private readonly CheckBox workshopDatesBox;
+        private readonly CheckBox previewImageBox;
+        private readonly CheckBox workshopLinkBox;
         private readonly Label steamCmdState;
 
         public SettingsForm(Settings settings, ModLibrary library)
@@ -41,7 +43,7 @@ namespace WorkshopManager
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
             MaximizeBox = false;
-            ClientSize = new Size(700, 740);
+            ClientSize = new Size(700, 804);
 
             var layout = new TableLayoutPanel
             {
@@ -156,6 +158,30 @@ namespace WorkshopManager
             };
             layout.Controls.Add(workshopDatesBox, 1, row);
             layout.SetColumnSpan(workshopDatesBox, 2);
+            row++;
+
+            AddRow(32);
+            previewImageBox = new CheckBox
+            {
+                Text = "Save the preview image into each mod folder",
+                Checked = settings.SavePreviewImage,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(3, 0, 3, 0)
+            };
+            layout.Controls.Add(previewImageBox, 1, row);
+            layout.SetColumnSpan(previewImageBox, 2);
+            row++;
+
+            AddRow(32);
+            workshopLinkBox = new CheckBox
+            {
+                Text = "Add a link to the Workshop page to each mod folder",
+                Checked = settings.CreateWorkshopLink,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(3, 0, 3, 0)
+            };
+            layout.Controls.Add(workshopLinkBox, 1, row);
+            layout.SetColumnSpan(workshopLinkBox, 2);
             row++;
 
             // --- Appearance and updates ---------------------------------
@@ -436,6 +462,8 @@ namespace WorkshopManager
             settings.ModFolderNaming =
                 (folderNamingCombo.SelectedItem as string) == "Mod title" ? "Title" : "Id";
             settings.UseWorkshopDates = workshopDatesBox.Checked;
+            settings.SavePreviewImage = previewImageBox.Checked;
+            settings.CreateWorkshopLink = workshopLinkBox.Checked;
             settings.Theme = themeCombo.SelectedItem as string ?? "Dark";
             settings.UpdateChannel = channelCombo.SelectedItem as string ?? "Stable";
             settings.Save();

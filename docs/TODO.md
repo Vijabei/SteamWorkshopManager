@@ -57,7 +57,21 @@ The install path is now covered end to end (see below). Still unexercised:
   `Time Updated` in its `mod_<id>.info` by hand) and press the button. The
   row should turn to "Update available" without re-adding the mod.
 
-- the "Delete the raw SteamCMD downloads after installing" option
+- **Replacing a mod folder on update, the preview image and the Workshop
+  link** in the real app on Windows. Covered by a throwaway harness on Linux
+  (stale files removed, read-only files, leftovers of a killed run, a failed
+  copy leaving the old version intact, dates, the `mods/` layout, a foreign
+  folder with the same title). What Linux cannot show: Windows refuses to
+  rename a folder while the game holds a file in it open. The code relies on
+  that refusal to keep the old version in place - worth trying once with the
+  game running.
+- the "Delete the raw SteamCMD downloads after installing" option. One
+  specific risk, from forum reports about the Steam client, unconfirmed for
+  SteamCMD: the option deletes `content/<appid>` but leaves
+  `steamapps/workshop/appworkshop_<appid>.acf`, which records what SteamCMD
+  believes is installed. If SteamCMD trusts that file, a later update of a
+  cleaned-up mod would not download and end as "Failed". Test: install with
+  the option on, then install the same mod again.
 - importing a legacy SteamCMD script via **Load script...**
 - a requirements check across a large collection (only 8 mods have been run)
 - the archiving options against a game that ships a `mods/` subfolder - those
