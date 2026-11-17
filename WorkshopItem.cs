@@ -46,6 +46,13 @@ namespace WorkshopManager
         /// game versions for many games.</summary>
         public string Tags { get; set; } = "";
 
+        /// <summary>
+        /// Title of the collection this mod was added from, empty when it was
+        /// added on its own. Decides the collection folder it is installed
+        /// into, when that option is on.
+        /// </summary>
+        public string CollectionTitle { get; set; } = "";
+
         /// <summary>URL of the preview image, empty if unknown.</summary>
         public string PreviewUrl { get; set; } = "";
 

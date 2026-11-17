@@ -70,9 +70,45 @@ namespace WorkshopManager
             await CollectIdsAsync(workshopId, ids, seen, visitedCollections, 0, cancellationToken, status);
 
             // No children -> the id itself is a single workshop item
-            if (ids.Count == 0) ids.Add(workshopId);
+            if (ids.Count == 0)
+            {
+                return await GetDetailsAsync(new[] { workshopId }, cancellationToken, status);
+            }
 
-            return await GetDetailsAsync(ids, cancellationToken, status);
+            var items = await GetDetailsAsync(ids, cancellationToken, status);
+
+            // Remembered on every mod, so it can be installed into a folder
+            // named after the collection. Nested collections count as part of
+            // the one that was added: that is the folder the user asked for.
+            var collectionTitle = await GetCollectionTitleAsync(workshopId, cancellationToken);
+            foreach (var item in items) item.CollectionTitle = collectionTitle;
+
+            return items;
+        }
+
+        /// <summary>
+        /// The title of a collection, or "" if it cannot be fetched - in which
+        /// case its mods are simply installed without a collection folder.
+        /// </summary>
+        private async Task<string> GetCollectionTitleAsync(string collectionId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var details = await GetDetailsAsync(new[] { collectionId }, cancellationToken);
+                var collection = details.FirstOrDefault();
+
+                // GetDetailsAsync puts a placeholder title on a failed lookup;
+                // only a real answer carries a timestamp.
+                return collection != null && collection.TimeUpdated > 0 ? collection.Title : "";
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                return "";
+            }
         }
 
         private async Task CollectIdsAsync(

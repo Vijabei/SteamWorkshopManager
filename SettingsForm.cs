@@ -31,6 +31,8 @@ namespace WorkshopManager
         private readonly CheckBox workshopDatesBox;
         private readonly CheckBox previewImageBox;
         private readonly CheckBox workshopLinkBox;
+        private readonly CheckBox infoInsideBox;
+        private readonly CheckBox collectionFoldersBox;
         private readonly Label steamCmdState;
 
         public SettingsForm(Settings settings, ModLibrary library)
@@ -43,7 +45,7 @@ namespace WorkshopManager
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
             MaximizeBox = false;
-            ClientSize = new Size(700, 804);
+            ClientSize = new Size(700, 872);
 
             var layout = new TableLayoutPanel
             {
@@ -182,6 +184,30 @@ namespace WorkshopManager
             };
             layout.Controls.Add(workshopLinkBox, 1, row);
             layout.SetColumnSpan(workshopLinkBox, 2);
+            row++;
+
+            AddRow(32);
+            infoInsideBox = new CheckBox
+            {
+                Text = "Keep the mod info file inside the mod folder",
+                Checked = settings.InfoFileInsideModFolder,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(3, 0, 3, 0)
+            };
+            layout.Controls.Add(infoInsideBox, 1, row);
+            layout.SetColumnSpan(infoInsideBox, 2);
+            row++;
+
+            AddRow(36);
+            collectionFoldersBox = new CheckBox
+            {
+                Text = "Put a collection's mods into a folder named after it",
+                Checked = settings.CollectionFolders,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(3, 0, 3, 0)
+            };
+            layout.Controls.Add(collectionFoldersBox, 1, row);
+            layout.Controls.Add(Hint("Not for game\nfolders"), 2, row);
             row++;
 
             // --- Appearance and updates ---------------------------------
@@ -464,6 +490,8 @@ namespace WorkshopManager
             settings.UseWorkshopDates = workshopDatesBox.Checked;
             settings.SavePreviewImage = previewImageBox.Checked;
             settings.CreateWorkshopLink = workshopLinkBox.Checked;
+            settings.InfoFileInsideModFolder = infoInsideBox.Checked;
+            settings.CollectionFolders = collectionFoldersBox.Checked;
             settings.Theme = themeCombo.SelectedItem as string ?? "Dark";
             settings.UpdateChannel = channelCombo.SelectedItem as string ?? "Stable";
             settings.Save();

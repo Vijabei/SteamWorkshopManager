@@ -22,7 +22,7 @@ A Windows application designed to simplify the installation and management of St
 - 📤 Export the library as Markdown files (one per mod, with YAML front matter) for your own notes or a server wiki
 - 🎨 Dark and light theme, switchable at any time
 - ⚙️ Settings dialog for SteamCMD, install folder, batch size, retries and update channel
-- 🗂️ Archiving options: folders named after the mod, files dated by the Workshop, the preview image and a link to the Workshop page saved into each mod folder
+- 🗂️ Archiving options: folders named after the mod, files dated by the Workshop, the preview image and a link to the Workshop page saved into each mod folder, the info file kept inside the mod folder, and one folder per collection
 - ⏭️ Skips already installed mods (optional) and detects available updates
 - ♻️ Updates replace a mod's folder as a whole, so files the author removed do not linger
 - 📊 Real-time progress tracking and cancellable operations

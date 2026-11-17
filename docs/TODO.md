@@ -57,6 +57,14 @@ The install path is now covered end to end (see below). Still unexercised:
   `Time Updated` in its `mod_<id>.info` by hand) and press the button. The
   row should turn to "Update available" without re-adding the mod.
 
+- **The info file inside the mod folder and collection folders** in the real
+  app on Windows. Covered by the same harness: every layout is found again
+  (beside, inside, in a collection, both), installed mods are skipped and
+  updated in place, a mod from a second collection stays where it was first
+  installed, a collection named like an existing mod folder goes to
+  `<name> (collection)`. Not covered: resolving a real collection's title
+  from Steam (blocked from the build machine) - add a collection, turn the
+  option on, install, and check the folder name.
 - **Replacing a mod folder on update, the preview image and the Workshop
   link** in the real app on Windows. Covered by a throwaway harness on Linux
   (stale files removed, read-only files, leftovers of a killed run, a failed

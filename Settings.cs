@@ -82,6 +82,20 @@ namespace WorkshopManager
         /// </summary>
         public bool CreateWorkshopLink { get; set; } = false;
 
+        /// <summary>
+        /// Write each mod's mod_&lt;id&gt;.info file into the mod's own folder
+        /// instead of beside it. Mods that are merged into a shared folder
+        /// have no folder of their own and keep it beside.
+        /// </summary>
+        public bool InfoFileInsideModFolder { get; set; } = false;
+
+        /// <summary>
+        /// Install the mods of a collection into a folder named after the
+        /// collection. For archives only: games expect their mods directly in
+        /// their mod folder.
+        /// </summary>
+        public bool CollectionFolders { get; set; } = false;
+
         /// <summary>Per-game overrides keyed by app id.</summary>
         public Dictionary<string, GameRule> GameRules { get; set; } = new();
 

@@ -1545,14 +1545,18 @@ namespace WorkshopManager
         /// </summary>
         private void RefreshInstalledStatus()
         {
+            // One scan of the install folders for the whole list; info files
+            // can sit in mod folders and collection folders, not just beside.
+            var index = new InstalledIndex();
+
             foreach (var item in modItems)
             {
                 if (item.Status == WorkshopItemStatus.Downloading) continue;
 
-                var infoPath = InstallationService.GetInfoFilePath(settings, targetDirBox.Text, item);
-                if (File.Exists(infoPath))
+                var installed = InstallationService.FindInstalled(settings, targetDirBox.Text, item, index);
+                if (installed != null && File.Exists(installed.InfoPath))
                 {
-                    var installedTime = InstallationService.GetInstalledTimeUpdated(infoPath);
+                    var installedTime = InstallationService.GetInstalledTimeUpdated(installed.InfoPath);
                     item.Status = item.TimeUpdated > 0 && installedTime.HasValue && item.TimeUpdated > installedTime.Value
                         ? WorkshopItemStatus.UpdateAvailable
                         : WorkshopItemStatus.Installed;

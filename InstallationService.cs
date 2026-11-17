@@ -45,6 +45,13 @@ namespace WorkshopManager
         private readonly string targetDir;
         private readonly Settings settings;
 
+        /// <summary>
+        /// Installed mods as found on disk. Built lazily and kept for the
+        /// lifetime of this service, which is one installation run; every mod
+        /// installed in the run is recorded in it as it goes.
+        /// </summary>
+        private InstalledIndex index = new();
+
         public InstallationService(Logger logger, string steamCmdPath, string targetDir, Settings settings)
         {
             this.logger = logger;
@@ -109,11 +116,73 @@ namespace WorkshopManager
         }
 
         /// <summary>
-        /// The folder a mod is installed into, below its game's target
-        /// directory. The id is the default because games and this app
-        /// identify mods by it; titles are for people who archive mods.
+        /// Where a mod's existing installation is, or null if it is not
+        /// installed below its game's install folder.
         /// </summary>
-        public static string ModFolderName(Settings settings, WorkshopItem mod, string gameTarget)
+        public static InstallLocation FindInstalled(
+            Settings settings, string defaultTargetDir, WorkshopItem mod, InstalledIndex index)
+        {
+            var gameTarget = ResolveTargetDir(settings, defaultTargetDir, mod.AppId);
+            return index.Find(gameTarget, mod.ModId);
+        }
+
+        /// <summary>
+        /// Decides where a mod is installed.
+        ///
+        /// A mod that is already installed is updated where it is, whatever
+        /// the settings say now. Moving it would mean deleting the old copy,
+        /// and a mod that belongs to two collections would hop between their
+        /// folders. New settings therefore apply to mods installed from then
+        /// on - the same rule folders named by title have always followed.
+        /// </summary>
+        public static InstallLocation PlanLocation(
+            Settings settings, string defaultTargetDir, WorkshopItem mod, InstalledIndex index)
+        {
+            var gameTarget = ResolveTargetDir(settings, defaultTargetDir, mod.AppId);
+
+            var existing = index.Find(gameTarget, mod.ModId);
+            if (existing != null) return existing;
+
+            var (baseDir, collection) = CollectionDir(settings, gameTarget, mod, index);
+
+            return new InstallLocation
+            {
+                ModId = mod.ModId,
+                BaseDir = baseDir,
+                FolderName = NewFolderName(settings, mod, baseDir),
+                InfoInside = settings?.InfoFileInsideModFolder == true,
+                CollectionTitle = collection
+            };
+        }
+
+        /// <summary>
+        /// The folder a new mod goes into: a folder named after the
+        /// collection it was added from, when that option is on, otherwise
+        /// the game's install folder itself.
+        /// </summary>
+        private static (string Dir, string Collection) CollectionDir(
+            Settings settings, string gameTarget, WorkshopItem mod, InstalledIndex index)
+        {
+            if (settings?.CollectionFolders != true) return (gameTarget, "");
+
+            var name = SanitiseFolderName(mod.CollectionTitle);
+            if (name.Length == 0) return (gameTarget, "");
+
+            var dir = Path.Combine(gameTarget, name);
+
+            // A mod named like the collection may already have that folder.
+            // Mods must never end up inside another mod.
+            if (index.IsModFolder(gameTarget, dir)) dir = Path.Combine(gameTarget, name + " (collection)");
+
+            return (dir, mod.CollectionTitle);
+        }
+
+        /// <summary>
+        /// The name for a new mod's own folder. The id is the default because
+        /// games and this app identify mods by it; titles are for people who
+        /// archive mods.
+        /// </summary>
+        private static string NewFolderName(Settings settings, WorkshopItem mod, string baseDir)
         {
             var byTitle = settings != null &&
                           "Title".Equals(settings.ModFolderNaming, StringComparison.OrdinalIgnoreCase);
@@ -123,34 +192,12 @@ namespace WorkshopManager
             var name = SanitiseFolderName(mod.Title);
             if (name.Length == 0) return mod.ModId;
 
-            // Titles are not unique. If a different mod already sits there,
-            // keep them apart rather than merging two mods into one folder.
-            var recorded = ReadInfoValue(GetInfoFilePath(settings, gameTarget, mod), "Folder");
-            if (!string.IsNullOrEmpty(recorded)) return recorded;
-
-            if (Directory.Exists(Path.Combine(gameTarget, name))) return $"{name} [{mod.ModId}]";
+            // Titles are not unique, and this mod is not installed yet - so a
+            // folder of that name belongs to something else. Keep them apart
+            // rather than merging two mods into one folder.
+            if (Directory.Exists(Path.Combine(baseDir, name))) return $"{name} [{mod.ModId}]";
 
             return name;
-        }
-
-        /// <summary>Reads a single "Key: value" line from a mod info file.</summary>
-        private static string ReadInfoValue(string infoFilePath, string key)
-        {
-            try
-            {
-                if (!File.Exists(infoFilePath)) return "";
-                foreach (var line in File.ReadLines(infoFilePath))
-                {
-                    if (line.StartsWith(key + ":", StringComparison.OrdinalIgnoreCase))
-                        return line.Substring(key.Length + 1).Trim();
-                    if (line.StartsWith("# Description")) break;
-                }
-            }
-            catch (Exception)
-            {
-                // A missing or unreadable info file simply means "not known"
-            }
-            return "";
         }
 
         /// <summary>
@@ -194,12 +241,6 @@ namespace WorkshopManager
                 // Not worth failing an installation over - the mod is on disk
                 logger.Warning($"Could not apply the workshop dates to {root}: {ex.Message}");
             }
-        }
-
-        public static string GetInfoFilePath(Settings settings, string defaultTargetDir, WorkshopItem mod)
-        {
-            var dir = ResolveTargetDir(settings, defaultTargetDir, mod.AppId);
-            return Path.Combine(dir, $"mod_{mod.ModId}.info");
         }
 
         /// <summary>
@@ -271,6 +312,7 @@ namespace WorkshopManager
                         case "steam workshop id": item.ModId = value; break;
                         case "game id": item.AppId = value; break;
                         case "title": item.Title = value; break;
+                        case "collection": item.CollectionTitle = value; break;
                         case "tags": item.Tags = value; break;
                         case "preview image": item.PreviewUrl = value; break;
                         case "requires mod": AddRequirement(item.RequiredMods, value); break;
@@ -347,14 +389,14 @@ namespace WorkshopManager
 
             var mods = new List<WorkshopItem>();
             var seen = new HashSet<string>();
+            var index = new InstalledIndex();
 
             foreach (var directory in directories.Distinct(StringComparer.OrdinalIgnoreCase))
             {
-                if (!Directory.Exists(directory)) continue;
-
-                foreach (var file in Directory.EnumerateFiles(directory, "mod_*.info"))
+                // Includes info files inside mod folders and collection folders
+                foreach (var location in index.All(directory))
                 {
-                    var item = ReadInfoFile(file);
+                    var item = ReadInfoFile(location.InfoPath);
                     if (item != null && seen.Add(item.ModId)) mods.Add(item);
                 }
             }
@@ -373,6 +415,9 @@ namespace WorkshopManager
             var installProgress = new InstallationProgress { TotalMods = mods.Count };
             var processedGameIds = new HashSet<string>();
             var pending = new List<WorkshopItem>();
+
+            // The disk may have changed since this service was created
+            index = new InstalledIndex();
 
             // The message is built after the counter is raised, so a message
             // can name the number of mods finished including this one. Passing
@@ -406,7 +451,7 @@ namespace WorkshopManager
 
                     if (options.SkipInstalledMods &&
                         mod.Status != WorkshopItemStatus.UpdateAvailable &&
-                        File.Exists(GetInfoFilePath(settings, targetDir, mod)))
+                        FindInstalled(settings, targetDir, mod, index) != null)
                     {
                         mod.Status = WorkshopItemStatus.Skipped;
                         statusChanged?.Invoke(mod);
@@ -588,82 +633,60 @@ namespace WorkshopManager
 
                 string sourceDir = Path.Combine(WorkshopContentBase, mod.AppId, mod.ModId);
                 string gameTarget = ResolveTargetDir(settings, targetDir, mod.AppId);
-                Directory.CreateDirectory(gameTarget);
+
+                var location = PlanLocation(settings, targetDir, mod, index);
+                Directory.CreateDirectory(location.BaseDir);
 
                 // Some games (e.g. mods shipping a "mods" folder) expect the
                 // folder contents merged into the target; everything else is
-                // installed as its own subfolder named after the mod id.
+                // installed as its own subfolder.
                 string modsSubDir = Path.Combine(sourceDir, "mods");
+                bool merged = Directory.Exists(modsSubDir);
 
-                string folderName = ModFolderName(settings, mod, gameTarget);
+                // Merged mods have no folder of their own to hold the info file
+                if (merged) location.InfoInside = false;
+
                 string installedTo = null;
 
                 await Task.Run(() =>
                 {
-                    if (Directory.Exists(modsSubDir))
+                    if (merged)
                     {
                         // The mod brings its own layout; the folder names in
                         // there are the game's business, not ours. Merged into
                         // a shared folder, it cannot be replaced as a whole,
                         // so files removed by an update stay behind here.
-                        CopyDirectory(modsSubDir, gameTarget, cancellationToken);
+                        CopyDirectory(modsSubDir, location.BaseDir, cancellationToken);
                     }
                     else
                     {
-                        string destDir = Path.Combine(gameTarget, folderName);
-                        ReplaceDirectory(sourceDir, destDir, cancellationToken);
-                        installedTo = destDir;
+                        ReplaceDirectory(sourceDir, location.ModDir, cancellationToken);
+                        installedTo = location.ModDir;
                     }
                 }, cancellationToken);
 
-                // Everything below needs a folder of the mod's own. The order
-                // matters: extra files are added first, because creating a
-                // file changes its folder's date, and the dates come last.
+                // The order matters: files are added to the mod's folder
+                // first - extras, then the info file if it lives in there -
+                // because creating a file changes its folder's date, and the
+                // dates are set last.
+                (string Path, DateTime? Uploaded) preview = (null, null);
                 if (installedTo != null)
                 {
-                    var preview = await AddArchiveExtrasAsync(installedTo, mod, cancellationToken);
-
-                    if (settings?.UseWorkshopDates == true)
-                    {
-                        ApplyWorkshopDates(installedTo, mod);
-
-                        // The picture has a date of its own - the day it was
-                        // uploaded - and that is the truer one for it.
-                        // Changing a file's date leaves its folder's alone.
-                        if (preview.Path != null) ImageCache.StampDate(preview.Path, preview.Uploaded);
-                    }
+                    preview = await AddArchiveExtrasAsync(installedTo, mod, cancellationToken);
                 }
 
-                string infoFile = Path.Combine(gameTarget, $"mod_{mod.ModId}.info");
-                // The description is archived here on purpose: once an item is
-                // removed from the Workshop its metadata can no longer be
-                // fetched, so it has to be captured at install time.
-                // One line per requirement keeps names containing separators
-                // harmless and makes the file readable by hand.
-                string requirementLines =
-                    string.Concat(mod.RequiredMods.Select(r => $"Requires Mod: {r.Id}|{r.Name}\n")) +
-                    string.Concat(mod.RequiredDlc.Select(r => $"Requires DLC: {r.Id}|{r.Name}\n"));
+                await WriteInfoFileAsync(location, mod, cancellationToken);
+                index.Record(gameTarget, location);
 
-                await File.WriteAllTextAsync(
-                    infoFile,
-                    "# Mod Info\n" +
-                    $"Steam Workshop ID: {mod.ModId}\n" +
-                    $"Game ID: {mod.AppId}\n" +
-                    $"Title: {mod.Title}\n" +
-                    $"Folder: {folderName}\n" +
-                    $"Time Updated: {mod.TimeUpdated}\n" +
-                    $"Time Updated (readable): {mod.TimeUpdatedText}\n" +
-                    $"Time Created: {mod.TimeCreated}\n" +
-                    $"Time Created (readable): {mod.TimeCreatedText}\n" +
-                    $"Tags: {mod.Tags}\n" +
-                    $"Preview Image: {mod.PreviewUrl}\n" +
-                    $"Requirements Checked: {(mod.RequirementsChecked ? "yes" : "no")}\n" +
-                    requirementLines +
-                    $"Installation Date: {DateTime.Now}\n" +
-                    "\n# Description\n" +
-                    mod.Description,
-                    cancellationToken
-                );
+                if (installedTo != null && settings?.UseWorkshopDates == true)
+                {
+                    ApplyWorkshopDates(installedTo, mod);
+
+                    // The picture has a date of its own - the day it was
+                    // uploaded - and that is the truer one for it. Changing a
+                    // file's date leaves its folder's alone.
+                    if (preview.Path != null) ImageCache.StampDate(preview.Path, preview.Uploaded);
+                }
 
                 mod.Status = WorkshopItemStatus.Installed;
                 logger.Info($"Mod {mod.ModId} installed successfully");
@@ -736,6 +759,52 @@ namespace WorkshopManager
                     logger.Error($"Failed to cleanup workshop content for game {gameId}: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>
+        /// Writes the mod_&lt;id&gt;.info file, beside the mod's folder or
+        /// inside it.
+        ///
+        /// The description is archived here on purpose: once an item is
+        /// removed from the Workshop its metadata can no longer be fetched, so
+        /// it has to be captured at install time. One line per requirement
+        /// keeps names containing separators harmless and makes the file
+        /// readable by hand.
+        /// </summary>
+        private static async Task WriteInfoFileAsync(
+            InstallLocation location, WorkshopItem mod, CancellationToken cancellationToken)
+        {
+            string requirementLines =
+                string.Concat(mod.RequiredMods.Select(r => $"Requires Mod: {r.Id}|{r.Name}\n")) +
+                string.Concat(mod.RequiredDlc.Select(r => $"Requires DLC: {r.Id}|{r.Name}\n"));
+
+            location.TimeUpdated = mod.TimeUpdated;
+
+            await File.WriteAllTextAsync(
+                location.InfoPath,
+                "# Mod Info\n" +
+                $"Steam Workshop ID: {mod.ModId}\n" +
+                $"Game ID: {mod.AppId}\n" +
+                $"Title: {mod.Title}\n" +
+                $"Folder: {location.FolderName}\n" +
+                // Lets the app find this file again when it is not beside
+                // the mod folder, where older versions always put it.
+                $"Info Inside Folder: {(location.InfoInside ? "yes" : "no")}\n" +
+                $"Collection: {location.CollectionTitle}\n" +
+                $"Time Updated: {mod.TimeUpdated}\n" +
+                $"Time Updated (readable): {mod.TimeUpdatedText}\n" +
+                $"Time Created: {mod.TimeCreated}\n" +
+                $"Time Created (readable): {mod.TimeCreatedText}\n" +
+                $"Tags: {mod.Tags}\n" +
+                $"Preview Image: {mod.PreviewUrl}\n" +
+                $"Workshop Page: {mod.WorkshopUrl}\n" +
+                $"Requirements Checked: {(mod.RequirementsChecked ? "yes" : "no")}\n" +
+                requirementLines +
+                $"Installation Date: {DateTime.Now}\n" +
+                "\n# Description\n" +
+                mod.Description,
+                cancellationToken
+            );
         }
 
         /// <summary>
