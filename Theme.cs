@@ -367,7 +367,9 @@ namespace WorkshopManager
         {
             tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
             tabs.SizeMode = TabSizeMode.Fixed;
-            tabs.ItemSize = new Size(150, 30);
+            // Set again on every theme switch, after the form has been
+            // scaled, so it is scaled here rather than by the form.
+            tabs.ItemSize = tabs.LogicalToDeviceUnits(new Size(150, 30));
             tabs.BackColor = Background;
             tabs.Invalidate();
         }

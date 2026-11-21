@@ -40,6 +40,13 @@ namespace WorkshopManager
             this.settings = settings;
             this.library = library;
 
+            // Sizes below are written for 96 DPI. Building the dialog with
+            // layout suspended lets resuming it scale everything to the
+            // screen, as in MainForm.
+            SuspendLayout();
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
+
             Text = "Settings";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterParent;
@@ -297,6 +304,9 @@ namespace WorkshopManager
             Theme.StylePrimary(ok);
             Theme.ApplyTitleBar(this);
             RefreshSteamCmdState();
+
+            ResumeLayout(false);
+            PerformLayout();
         }
 
         private static Label SectionLabel(string text) => new()

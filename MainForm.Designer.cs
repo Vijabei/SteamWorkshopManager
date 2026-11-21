@@ -9,12 +9,15 @@ namespace WorkshopManager
 
         /// <summary>
         /// Minimal designer boilerplate; the actual UI is built in
-        /// MainForm.SetupUI().
+        /// MainForm.SetupUI(). Sizes in there are written for 96 DPI; the
+        /// form scales them to the screen when layout resumes after
+        /// SetupUI, just as designer-generated code would.
         /// </summary>
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
         }
     }
 }

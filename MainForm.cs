@@ -87,9 +87,16 @@ namespace WorkshopManager
                     ? ThemeMode.Light
                     : ThemeMode.Dark);
 
+                // Everything is built while layout is suspended, so that
+                // resuming it scales the whole tree from 96 DPI to the
+                // screen in one go. Controls added after that are not
+                // scaled, and sizes set later at run time go through Px().
+                SuspendLayout();
                 InitializeComponent();
                 SetupUI();
                 ApplyTheme();
+                ResumeLayout(false);
+                PerformLayout();
 
                 logger = new Logger(logBox);
 
@@ -123,6 +130,13 @@ namespace WorkshopManager
         }
 
         #region UI setup
+
+        /// <summary>
+        /// A size written for 96 DPI, in pixels on this screen. Only needed
+        /// for sizes set at run time; the layout built in SetupUI is scaled
+        /// as a whole.
+        /// </summary>
+        private int Px(int logical) => LogicalToDeviceUnits(logical);
 
         private void SetupUI()
         {
@@ -189,13 +203,13 @@ namespace WorkshopManager
             // Room around the label, so a button is never a tight box of text
             foreach (var b in new[] { themeButton, channelButton, settingsButton })
             {
-                b.Padding = new Padding(12, 5, 12, 5);
+                b.Padding = new Padding(Px(12), Px(5), Px(12), Px(5));
             }
 
             var top = (bar.ClientSize.Height - themeButton.Height) / 2;
-            themeButton.Location = new Point(bar.ClientSize.Width - themeButton.Width - 12, top);
-            channelButton.Location = new Point(themeButton.Left - channelButton.Width - 8, top);
-            settingsButton.Location = new Point(channelButton.Left - settingsButton.Width - 8, top);
+            themeButton.Location = new Point(bar.ClientSize.Width - themeButton.Width - Px(12), top);
+            channelButton.Location = new Point(themeButton.Left - channelButton.Width - Px(8), top);
+            settingsButton.Location = new Point(channelButton.Left - settingsButton.Width - Px(8), top);
         }
 
         /// <summary>
@@ -481,6 +495,10 @@ namespace WorkshopManager
             // Last column, so it takes the remaining width - requirement lists
             // are the widest thing in the table.
             modListView.Columns.Add("Requires", 200);
+
+            // The form's scaling covers bounds, margins and table rows, but
+            // not column widths.
+            foreach (ColumnHeader column in modListView.Columns) column.Width = Px(column.Width);
             modListView.SelectedIndexChanged += ModListSelectionChanged;
             modListView.DoubleClick += (s, e) => OpenSelectedModInBrowser();
 
@@ -1323,15 +1341,15 @@ namespace WorkshopManager
         {
             try
             {
-                const int listMin = 320;
-                const int detailMin = 260;
+                int listMin = Px(320);
+                int detailMin = Px(260);
 
                 // Distance first, minimum sizes afterwards - the reverse order
                 // fails validation while the splitter still sits at its default.
                 var max = listSplit.Width - detailMin - listSplit.SplitterWidth;
                 if (max <= listMin) return;
 
-                listSplit.SplitterDistance = Math.Clamp(listSplit.Width - 360, listMin, max);
+                listSplit.SplitterDistance = Math.Clamp(listSplit.Width - Px(360), listMin, max);
                 listSplit.Panel1MinSize = listMin;
                 listSplit.Panel2MinSize = detailMin;
             }
