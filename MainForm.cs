@@ -933,8 +933,41 @@ namespace WorkshopManager
             try
             {
                 UpdateStatus($"Resolving workshop id {id}...");
-                var items = await collectionService.ResolveAsync(
-                    id, CancellationToken.None, new Progress<string>(UpdateStatus));
+                var progress = new Progress<string>(UpdateStatus);
+                var collection = await collectionService.GetCollectionAsync(id, CancellationToken.None, progress);
+
+                List<WorkshopItem> items;
+                if (collection == null)
+                {
+                    // Not a collection: a single mod
+                    items = await collectionService.GetDetailsAsync(new[] { id }, CancellationToken.None, progress);
+                }
+                else
+                {
+                    IReadOnlyCollection<string> included = null;
+                    if (collection.Linked.Count > 0)
+                    {
+                        using var dialog = new LinkedCollectionsDialog(collection, settings.CollectionFolders);
+                        if (dialog.ShowDialog(this) != DialogResult.OK)
+                        {
+                            UpdateStatus("Ready");
+                            return;
+                        }
+                        included = dialog.IncludedIds;
+                    }
+
+                    items = await collectionService.GetItemsAsync(collection, included, CancellationToken.None, progress);
+
+                    if (items.Count == 0)
+                    {
+                        UpdateStatus("Ready");
+                        MessageBox.Show(
+                            "Nothing to add: the collection has no mods of its own, and none of its " +
+                            "linked collections were chosen.",
+                            "Nothing added", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                }
 
                 AddItemsToList(items);
                 urlBox.Clear();

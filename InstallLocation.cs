@@ -35,6 +35,12 @@ namespace WorkshopManager
         /// </summary>
         public string CollectionTitle { get; set; } = "";
 
+        /// <summary>
+        /// Title of the linked collection whose "[title]" subfolder of the
+        /// collection folder this mod was installed into, empty otherwise.
+        /// </summary>
+        public string LinkedCollectionTitle { get; set; } = "";
+
         /// <summary>Workshop version recorded at install time, 0 if unknown.</summary>
         public long TimeUpdated { get; set; }
 
@@ -51,12 +57,18 @@ namespace WorkshopManager
     /// The info file used to sit directly in the install folder, so a single
     /// File.Exists answered "is this mod installed?". With info files inside
     /// mod folders and mods inside collection folders, it can now be up to
-    /// two levels further down:
+    /// three levels further down:
     ///
     ///   install folder\mod_1.info                       (beside, the default)
     ///   install folder\Mod\mod_1.info                   (inside the mod folder)
     ///   install folder\Collection\mod_1.info            (beside, in a collection)
     ///   install folder\Collection\Mod\mod_1.info        (inside, in a collection)
+    ///   install folder\Collection\[Linked]\Mod\mod_1.info
+    ///                                    (inside, in a linked collection)
+    ///
+    /// The third level is only searched below folders named "[...]", the
+    /// way linked collection folders are named, so the walk does not reach
+    /// into the subfolders of every mod.
     ///
     /// Each install folder is scanned once, on first use, and remembered.
     /// Create a fresh index when the disk may have changed under it.
@@ -124,7 +136,8 @@ namespace WorkshopManager
                     }
                 }
 
-                if (depth >= MaxDepth) return;
+                if (depth > MaxDepth) return;
+                if (depth == MaxDepth && !IsLinkedCollectionFolder(directory)) return;
 
                 foreach (var sub in Directory.EnumerateDirectories(directory))
                 {
@@ -141,6 +154,14 @@ namespace WorkshopManager
             }
         }
 
+        private static bool IsLinkedCollectionFolder(string directory)
+        {
+            var name = Path.GetFileName(directory);
+            return name.StartsWith("[", StringComparison.Ordinal) &&
+                   (name.EndsWith("]", StringComparison.Ordinal) ||
+                    name.EndsWith("] (collection)", StringComparison.Ordinal));
+        }
+
         /// <summary>
         /// Reads the location fields from an info file's header. Info files
         /// from versions before the info file could move have no "Info Inside
@@ -151,7 +172,7 @@ namespace WorkshopManager
         {
             try
             {
-                string id = "", folder = "", inside = "", collection = "";
+                string id = "", folder = "", inside = "", collection = "", linked = "";
                 long timeUpdated = 0;
 
                 foreach (var line in File.ReadLines(infoPath))
@@ -168,6 +189,7 @@ namespace WorkshopManager
                         case "folder": folder = value; break;
                         case "info inside folder": inside = value; break;
                         case "collection": collection = value; break;
+                        case "linked collection": linked = value; break;
                         case "time updated":
                             long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out timeUpdated);
                             break;
@@ -181,6 +203,7 @@ namespace WorkshopManager
                 {
                     ModId = id,
                     CollectionTitle = collection,
+                    LinkedCollectionTitle = linked,
                     TimeUpdated = timeUpdated
                 };
 

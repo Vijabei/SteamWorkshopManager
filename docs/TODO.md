@@ -50,6 +50,26 @@ and what follows approval.
 
 The install path is now covered end to end (see below). Still unexercised:
 
+- **Follow-ups from #1 (18 November), built on Linux only, none of it seen
+  on Windows yet:**
+  - *Dark theme:* the tab strip and the progress bar now paint themselves
+    (`ThemedControls.cs`). Check that no light band is left beside the tabs,
+    around the page or at the bottom, that switching tabs by mouse and by
+    Ctrl+Tab still works, and that the progress bar fills during an install.
+  - *High DPI:* the app is now system DPI aware. Check at 125 %, 150 % and
+    200 % scaling: text sharp, nothing clipped - the tabs, the list columns,
+    the bottom bar, the settings dialog and the linked collections dialog.
+    Moving the window to a monitor with different scaling still stretches
+    it, as before.
+  - *Linked collections:* add a collection that links to others (one that
+    links to none must not show the dialog). Check the counts in the dialog,
+    that unchecked collections are left out, and with collection folders on
+    that their mods land in `Collection\[Linked title]\`. The assignment and
+    the folder layout are covered by a throwaway harness, the Steam lookup
+    is not (blocked from the build machine).
+  - *Info file:* with Workshop dates on, `mod_<id>.info` has no
+    `Installation Date` line any more.
+
 - **"Check installed / updates" asking Steam first** (issue #3). Built and
   checked on Linux against the WinForms reference assemblies, and the merge
   logic is covered by a throwaway harness. Not yet clicked in the real app on

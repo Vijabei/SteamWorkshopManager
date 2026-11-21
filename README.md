@@ -11,7 +11,7 @@ A Windows application designed to simplify the installation and management of St
 
 - 🔄 Automatic updates — the app checks GitHub for new versions and updates itself with one click, on a stable or beta channel
 - 🌐 Built-in Steam Workshop browser (WebView2) — browse collections and mods, import them with one click
-- 📦 Local collection processing via the official Steam Web API (nested collections supported, no scraping)
+- 📦 Local collection processing via the official Steam Web API (linked collections supported - you choose which to include, no scraping)
 - 👤 Import your subscribed items from your Steam profile (all pages, using your own browser session)
 - ⬇️ One-click SteamCMD download and setup
 - 🔁 Batched downloads with automatic retries — reliable even for large collections
@@ -22,7 +22,7 @@ A Windows application designed to simplify the installation and management of St
 - 📤 Export the library as Markdown files (one per mod, with YAML front matter) for your own notes or a server wiki
 - 🎨 Dark and light theme, switchable at any time
 - ⚙️ Settings dialog for SteamCMD, install folder, batch size, retries and update channel
-- 🗂️ Archiving options: folders named after the mod, files dated by the Workshop, the preview image and a link to the Workshop page saved into each mod folder, the info file kept inside the mod folder, and one folder per collection
+- 🗂️ Archiving options: folders named after the mod, files dated by the Workshop, the preview image and a link to the Workshop page saved into each mod folder, the info file kept inside the mod folder, and one folder per collection, with a `[name]` subfolder for each linked collection
 - ⏭️ Skips already installed mods (optional) and detects available updates
 - ♻️ Updates replace a mod's folder as a whole, so files the author removed do not linger
 - 📊 Real-time progress tracking and cancellable operations

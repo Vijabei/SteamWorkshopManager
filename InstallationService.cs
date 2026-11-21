@@ -151,14 +151,17 @@ namespace WorkshopManager
                 BaseDir = baseDir,
                 FolderName = NewFolderName(settings, mod, baseDir),
                 InfoInside = settings?.InfoFileInsideModFolder == true,
-                CollectionTitle = collection
+                CollectionTitle = collection,
+                LinkedCollectionTitle = collection.Length > 0 ? mod.LinkedCollectionTitle : ""
             };
         }
 
         /// <summary>
         /// The folder a new mod goes into: a folder named after the
         /// collection it was added from, when that option is on, otherwise
-        /// the game's install folder itself.
+        /// the game's install folder itself. A mod that came in through a
+        /// linked collection goes one level further, into "[linked title]",
+        /// so the collections stay apart.
         /// </summary>
         private static (string Dir, string Collection) CollectionDir(
             Settings settings, string gameTarget, WorkshopItem mod, InstalledIndex index)
@@ -173,6 +176,14 @@ namespace WorkshopManager
             // A mod named like the collection may already have that folder.
             // Mods must never end up inside another mod.
             if (index.IsModFolder(gameTarget, dir)) dir = Path.Combine(gameTarget, name + " (collection)");
+
+            var linked = SanitiseFolderName(mod.LinkedCollectionTitle);
+            if (linked.Length > 0)
+            {
+                var linkedDir = Path.Combine(dir, $"[{linked}]");
+                if (index.IsModFolder(gameTarget, linkedDir)) linkedDir = Path.Combine(dir, $"[{linked}] (collection)");
+                dir = linkedDir;
+            }
 
             return (dir, mod.CollectionTitle);
         }
@@ -313,6 +324,7 @@ namespace WorkshopManager
                         case "game id": item.AppId = value; break;
                         case "title": item.Title = value; break;
                         case "collection": item.CollectionTitle = value; break;
+                        case "linked collection": item.LinkedCollectionTitle = value; break;
                         case "tags": item.Tags = value; break;
                         case "preview image": item.PreviewUrl = value; break;
                         case "requires mod": AddRequirement(item.RequiredMods, value); break;
@@ -799,6 +811,7 @@ namespace WorkshopManager
                 // the mod folder, where older versions always put it.
                 $"Info Inside Folder: {(location.InfoInside ? "yes" : "no")}\n" +
                 $"Collection: {location.CollectionTitle}\n" +
+                $"Linked Collection: {location.LinkedCollectionTitle}\n" +
                 $"Time Updated: {mod.TimeUpdated}\n" +
                 $"Time Updated (readable): {mod.TimeUpdatedText}\n" +
                 $"Time Created: {mod.TimeCreated}\n" +

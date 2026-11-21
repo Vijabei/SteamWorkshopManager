@@ -54,52 +54,32 @@ namespace WorkshopManager
         }
 
         /// <summary>
-        /// Resolves a workshop id (collection or single item) to a list of
-        /// items with full metadata. Nested collections are resolved
-        /// recursively; a plain mod id yields a single-item list.
+        /// Reads the structure of a collection: its own mods and the
+        /// collections it links to, recursively. Returns null when the id is
+        /// not a collection - a single mod, or something Steam does not know -
+        /// so the caller can treat it as one item.
         /// </summary>
-        public async Task<List<WorkshopItem>> ResolveAsync(
+        public async Task<CollectionNode> GetCollectionAsync(
             string workshopId,
             CancellationToken cancellationToken,
             IProgress<string> status = null)
         {
-            var ids = new List<string>();
-            var seen = new HashSet<string>();
-            var visitedCollections = new HashSet<string>();
+            var visited = new HashSet<string>();
+            var root = await LoadNodeAsync(workshopId, visited, 0, cancellationToken, status);
+            if (root == null) return null;
 
-            await CollectIdsAsync(workshopId, ids, seen, visitedCollections, 0, cancellationToken, status);
-
-            // No children -> the id itself is a single workshop item
-            if (ids.Count == 0)
-            {
-                return await GetDetailsAsync(new[] { workshopId }, cancellationToken, status);
-            }
-
-            var items = await GetDetailsAsync(ids, cancellationToken, status);
-
-            // Remembered on every mod, so it can be installed into a folder
-            // named after the collection. Nested collections count as part of
-            // the one that was added: that is the folder the user asked for.
-            var collectionTitle = await GetCollectionTitleAsync(workshopId, cancellationToken);
-            foreach (var item in items) item.CollectionTitle = collectionTitle;
-
-            return items;
-        }
-
-        /// <summary>
-        /// The title of a collection, or "" if it cannot be fetched - in which
-        /// case its mods are simply installed without a collection folder.
-        /// </summary>
-        private async Task<string> GetCollectionTitleAsync(string collectionId, CancellationToken cancellationToken)
-        {
+            // One request for the titles of every collection in the tree
+            var nodes = root.SelfAndDescendants().ToList();
             try
             {
-                var details = await GetDetailsAsync(new[] { collectionId }, cancellationToken);
-                var collection = details.FirstOrDefault();
-
-                // GetDetailsAsync puts a placeholder title on a failed lookup;
-                // only a real answer carries a timestamp.
-                return collection != null && collection.TimeUpdated > 0 ? collection.Title : "";
+                var details = await GetDetailsAsync(nodes.Select(n => n.Id).ToList(), cancellationToken);
+                foreach (var (node, detail) in nodes.Zip(details))
+                {
+                    // GetDetailsAsync puts a placeholder title on a failed
+                    // lookup; only a real answer carries a timestamp. Without
+                    // a title a collection gets no folder of its own.
+                    node.Title = detail.TimeUpdated > 0 ? detail.Title : "";
+                }
             }
             catch (OperationCanceledException)
             {
@@ -107,20 +87,86 @@ namespace WorkshopManager
             }
             catch (Exception)
             {
-                return "";
+                // Titles are a nicety - the mods can be added without them
             }
+
+            return root;
         }
 
-        private async Task CollectIdsAsync(
+        /// <summary>
+        /// The mods of a collection with full metadata, the linked
+        /// collections in <paramref name="includedLinked"/> among them.
+        ///
+        /// Every mod remembers the collection that was added, and - when it
+        /// came from a linked collection - which one, so it can be installed
+        /// into a subfolder of that name. A linked collection's own links
+        /// count as part of it: the choice offered is one level deep, and so
+        /// are the folders.
+        ///
+        /// A mod listed in several places belongs to the collection that was
+        /// added if it is listed there, otherwise to the first linked
+        /// collection that has it.
+        /// </summary>
+        public async Task<List<WorkshopItem>> GetItemsAsync(
+            CollectionNode root,
+            IReadOnlyCollection<string> includedLinked,
+            CancellationToken cancellationToken,
+            IProgress<string> status = null)
+        {
+            var (ids, linkedTitleOf) = PlanItems(root, includedLinked);
+            if (ids.Count == 0) return new List<WorkshopItem>();
+
+            var items = await GetDetailsAsync(ids, cancellationToken, status);
+            foreach (var item in items)
+            {
+                item.CollectionTitle = root.Title;
+                item.LinkedCollectionTitle = linkedTitleOf.TryGetValue(item.ModId, out var title) ? title : "";
+            }
+
+            return items;
+        }
+
+        /// <summary>
+        /// Which mods a collection contributes, in order, and for each one
+        /// that came in through a linked collection, that collection's title.
+        /// Null for <paramref name="includedLinked"/> means all of them.
+        /// </summary>
+        internal static (List<string> Ids, Dictionary<string, string> LinkedTitleOf) PlanItems(
+            CollectionNode root, IReadOnlyCollection<string> includedLinked)
+        {
+            var ids = new List<string>();
+            var linkedTitleOf = new Dictionary<string, string>();
+            var seen = new HashSet<string>();
+
+            foreach (var id in root.ItemIds)
+            {
+                if (seen.Add(id)) ids.Add(id);
+            }
+
+            foreach (var linked in root.Linked)
+            {
+                if (includedLinked != null && !includedLinked.Contains(linked.Id)) continue;
+
+                foreach (var id in linked.AllItemIds())
+                {
+                    if (!seen.Add(id)) continue;
+                    ids.Add(id);
+                    linkedTitleOf[id] = linked.Title;
+                }
+            }
+
+            return (ids, linkedTitleOf);
+        }
+
+        private async Task<CollectionNode> LoadNodeAsync(
             string collectionId,
-            List<string> ids,
-            HashSet<string> seen,
-            HashSet<string> visitedCollections,
+            HashSet<string> visited,
             int depth,
             CancellationToken cancellationToken,
             IProgress<string> status)
         {
-            if (depth > MaxCollectionDepth || !visitedCollections.Add(collectionId)) return;
+            // Collections may link back to each other; each is read once
+            if (depth > MaxCollectionDepth || !visited.Add(collectionId)) return null;
 
             status?.Report($"Resolving collection {collectionId}...");
 
@@ -132,9 +178,12 @@ namespace WorkshopManager
 
             var json = await PostFormAsync(GetCollectionDetailsUrl, form, cancellationToken);
             var details = (json["response"]?["collectiondetails"] as JArray)?.FirstOrDefault();
-            if (details == null || (int?)details["result"] != 1) return;
+            if (details == null || (int?)details["result"] != 1) return null;
 
-            if (details["children"] is not JArray children) return;
+            // No children -> not a collection, or an empty one
+            if (details["children"] is not JArray children || children.Count == 0) return null;
+
+            var node = new CollectionNode { Id = collectionId };
 
             foreach (var child in children)
             {
@@ -143,16 +192,19 @@ namespace WorkshopManager
                 var id = (string)child["publishedfileid"];
                 if (string.IsNullOrEmpty(id)) continue;
 
-                // filetype 2 marks a nested collection
+                // filetype 2 marks a linked collection
                 if (((int?)child["filetype"] ?? 0) == 2)
                 {
-                    await CollectIdsAsync(id, ids, seen, visitedCollections, depth + 1, cancellationToken, status);
+                    var linked = await LoadNodeAsync(id, visited, depth + 1, cancellationToken, status);
+                    if (linked != null) node.Linked.Add(linked);
                 }
-                else if (seen.Add(id))
+                else
                 {
-                    ids.Add(id);
+                    node.ItemIds.Add(id);
                 }
             }
+
+            return node;
         }
 
         /// <summary>
@@ -292,5 +344,36 @@ namespace WorkshopManager
 
             return items;
         }
+    }
+
+    /// <summary>
+    /// A Workshop collection as Steam lists it: its own mods and the
+    /// collections it links to.
+    /// </summary>
+    public class CollectionNode
+    {
+        public string Id { get; set; } = "";
+
+        /// <summary>Title, empty if Steam did not tell.</summary>
+        public string Title { get; set; } = "";
+
+        /// <summary>Mods listed directly in this collection.</summary>
+        public List<string> ItemIds { get; } = new();
+
+        /// <summary>Collections this one links to.</summary>
+        public List<CollectionNode> Linked { get; } = new();
+
+        public IEnumerable<CollectionNode> SelfAndDescendants()
+        {
+            yield return this;
+            foreach (var linked in Linked)
+            {
+                foreach (var node in linked.SelfAndDescendants()) yield return node;
+            }
+        }
+
+        /// <summary>Mods of this collection and everything it links to, without repeats.</summary>
+        public IEnumerable<string> AllItemIds() =>
+            SelfAndDescendants().SelectMany(n => n.ItemIds).Distinct();
     }
 }

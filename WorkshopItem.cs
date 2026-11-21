@@ -53,6 +53,13 @@ namespace WorkshopManager
         /// </summary>
         public string CollectionTitle { get; set; } = "";
 
+        /// <summary>
+        /// Title of the linked collection this mod came in through, empty
+        /// when it is listed in the added collection itself. With collection
+        /// folders on, such a mod goes into a "[title]" subfolder.
+        /// </summary>
+        public string LinkedCollectionTitle { get; set; } = "";
+
         /// <summary>URL of the preview image, empty if unknown.</summary>
         public string PreviewUrl { get; set; } = "";
 
