@@ -1,7 +1,18 @@
 name: Build and release
 
-# Pushing a tag builds the release and prepares it as a draft.
-# "Run workflow" builds without touching releases - useful for a test build.
+# Three ways in:
+#
+# - Pushing a tag builds the release and prepares it as a draft.
+# - "Run workflow" on its own builds without touching releases - a test
+#   build to download from the run.
+# - "Run workflow" with "release" tags the chosen commit with the version
+#   from the project file and prepares the release as a draft - the same
+#   result as pushing the tag, for when no one can push one. With "publish"
+#   as well, a pre-release goes out right away; a stable release always
+#   stays a draft, so publishing it remains a decision.
+#
+# Release notes come from docs/release-notes/v<version>.md when that file
+# exists, otherwise GitHub generates them.
 #
 # Plain pushes are not built here: dotnet-desktop.yml already builds main
 # and every pull request, and running both would build the same commit twice.
@@ -10,6 +21,15 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Tag this commit with the project version and prepare the release as a draft'
+        type: boolean
+        default: false
+      publish:
+        description: 'Publish right away - pre-releases only, and only with docs/release-notes/v<version>.md'
+        type: boolean
+        default: false
 
 # Needed to create the release. Nothing else is written.
 permissions:
@@ -44,6 +64,31 @@ jobs:
           "prerelease=$($isPreRelease.ToString().ToLower())" >> $env:GITHUB_OUTPUT
 
           Write-Host "Project version: $version (pre-release: $isPreRelease)"
+
+      # Everything that could stop a release is checked before building, so a
+      # refused run costs seconds, not a build.
+      - name: Check that the release can be made
+        if: github.event_name == 'workflow_dispatch' && inputs.release
+        shell: pwsh
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+
+          # Never move or reuse a tag: installed copies compare against it
+          $existing = git ls-remote --tags origin "refs/tags/$tag"
+          if ($existing) {
+            throw "Tag $tag already exists. Bump <Version> in WorkshopManager.csproj first."
+          }
+
+          if ('${{ inputs.publish }}' -eq 'true') {
+            if ('${{ steps.version.outputs.prerelease }}' -ne 'true') {
+              throw "Only pre-releases are published by this workflow. $tag is a stable version: run without 'publish' and publish the draft on GitHub."
+            }
+            if (-not (Test-Path "docs/release-notes/$tag.md")) {
+              throw "Publishing needs release notes in docs/release-notes/$tag.md."
+            }
+          }
+
+          Write-Host "Ready to release $tag from ${{ github.sha }}"
 
       # A tag that disagrees with the project file would produce a release
       # whose contents report a different version than its name - and the
@@ -110,24 +155,52 @@ jobs:
           path: ${{ steps.package.outputs.zip }}
           retention-days: 30
 
-      # Deliberately a draft: publishing a release makes every installed copy
+      # A draft by default: publishing a release makes every installed copy
       # offer the update on its next start. That should be a decision, not a
-      # side effect of pushing a tag. Review the notes, then hit publish.
-      - name: Prepare the release as a draft
-        if: startsWith(github.ref, 'refs/tags/')
+      # side effect of pushing a tag. Only a manual run that asks for it
+      # publishes, and only a pre-release, which reaches the beta channel.
+      - name: Prepare the release
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release)
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          $repo = '${{ github.repository }}'
+          $notes = "docs/release-notes/$tag.md"
+          $publish = '${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.publish }}' -eq 'true'
+
+          # A release for this tag may exist already - say, a draft made by a
+          # manual run. Making a second one would fail anyway.
+          $known = gh api "repos/$repo/releases" --paginate --jq ".[] | select(.tag_name == `"$tag`") | .id"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not list the existing releases.' }
+          if ($known) {
+            Write-Host "A release for $tag exists already; nothing to do."
+            exit 0
+          }
+
+          # A manual run creates the tag itself, at exactly the commit that
+          # was built. Tags made with this token start no further run.
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            gh api "repos/$repo/git/refs" -f "ref=refs/tags/$tag" -f 'sha=${{ github.sha }}' | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Could not create the tag $tag." }
+            Write-Host "Tagged ${{ github.sha }} as $tag"
+          }
+
           # Not $args - that is an automatic PowerShell variable
           $releaseArgs = @(
-            '${{ steps.version.outputs.tag }}'
+            $tag
             '${{ steps.package.outputs.zip }}'
-            '--draft'
-            '--generate-notes'
             '--title', 'Workshop Manager ${{ steps.version.outputs.version }}'
+            '--verify-tag'
           )
+          if (Test-Path $notes) { $releaseArgs += @('--notes-file', $notes) }
+          else { $releaseArgs += '--generate-notes' }
           if ('${{ steps.version.outputs.prerelease }}' -eq 'true') { $releaseArgs += '--prerelease' }
+          if (-not $publish) { $releaseArgs += '--draft' }
 
           gh release create @releaseArgs
-          Write-Host 'Draft release created. Review the notes and publish it on GitHub.'
+          if ($LASTEXITCODE -ne 0) { throw "Could not create the release $tag." }
+
+          if ($publish) { Write-Host "Published $tag." }
+          else { Write-Host 'Draft release created. Review the notes and publish it on GitHub.' }

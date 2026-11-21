@@ -99,6 +99,14 @@ Releases are built by GitHub Actions, not on a developer machine.
 
 If the tag and the project version disagree, the run fails before building.
 
+Without pushing a tag, from the **Actions** tab: *Build and release* → *Run workflow*.
+
+- With no option ticked it only builds - a test build to download from the run.
+- With **release** it tags the chosen branch's commit with the version from the project file and prepares the draft, just like pushing the tag. It refuses a version whose tag exists already.
+- With **publish** as well, a pre-release is published right away. That needs its notes in `docs/release-notes/v<version>.md`. A stable release always stays a draft.
+
+Release notes are taken from `docs/release-notes/v<version>.md` whenever that file exists; otherwise GitHub generates them.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

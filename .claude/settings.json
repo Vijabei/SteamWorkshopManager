@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build *)",
+      "Bash(dotnet run *)",
+      "Bash(dotnet restore *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet publish *)",
+      "Bash(dotnet tool install *)",
+      "Bash(dotnet tool run *)",
+      "Bash(dotnet --version)",
+      "Bash(apt-get update *)",
+      "Bash(apt-get install *)",
+      "mcp__github__actions_run_trigger",
+      "mcp__github__actions_list",
+      "mcp__github__actions_get"
+    ]
+  }
+}
