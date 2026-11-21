@@ -131,7 +131,7 @@ namespace WorkshopManager
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                ThemedMessage.Show(
                     $"Error initializing the application: {ex.Message}",
                     "Initialization Error",
                     MessageBoxButtons.OK,
@@ -409,7 +409,7 @@ namespace WorkshopManager
         {
             var listed = installItems.Count + archiveItems.Count;
 
-            var answer = MessageBox.Show(
+            var answer = ThemedMessage.Show(
                 "The new text size is used from the next start of the app.\n\n" +
                 "Restart now?" +
                 (listed > 0 ? $"\n\nThe {listed} mods in the lists are not kept - they can be added again, " +
@@ -426,7 +426,7 @@ namespace WorkshopManager
 
         private void ExplainArchiveMigration()
         {
-            MessageBox.Show(
+            ThemedMessage.Show(
                 "Archiving has a mode of its own now.\n\n" +
                 "The archiving options you had turned on - such as folders named by title or " +
                 "Workshop dates - have moved into the new archive mode, exactly as you set them. " +
@@ -909,7 +909,7 @@ namespace WorkshopManager
                 }
 
                 var kind = update.IsPreRelease ? "beta version" : "version";
-                var choice = MessageBox.Show(
+                var choice = ThemedMessage.Show(
                     $"A new {kind} is available: {update.LatestVersion} " +
                     $"(installed: {update.CurrentVersion}).\n\n" +
                     "Install now? The app will restart automatically.\n\n" +
@@ -939,7 +939,7 @@ namespace WorkshopManager
                     SetControlsEnabled(true);
                     UpdateStatus("Ready");
 
-                    if (MessageBox.Show(
+                    if (ThemedMessage.Show(
                         $"The automatic update failed:\n{ex.Message}\n\n" +
                         "Open the download page in the browser instead?",
                         "Update failed", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
@@ -1150,7 +1150,7 @@ namespace WorkshopManager
                 if (ids.Count == 0)
                 {
                     UpdateStatus("No workshop items found on this page");
-                    MessageBox.Show(
+                    ThemedMessage.Show(
                         "No workshop items were found. Make sure you are viewing a subscription " +
                         "list (e.g. 'Subscribed Items') for a specific game.",
                         "Nothing found", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1184,7 +1184,7 @@ namespace WorkshopManager
             var id = CollectionService.ExtractWorkshopId(input);
             if (id == null)
             {
-                MessageBox.Show(
+                ThemedMessage.Show(
                     "Please enter a Steam Workshop URL or a numeric workshop id.\n" +
                     "Example: https://steamcommunity.com/sharedfiles/filedetails/?id=123456789",
                     "Invalid input", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -1223,7 +1223,7 @@ namespace WorkshopManager
                     if (items.Count == 0)
                     {
                         UpdateStatus("Ready");
-                        MessageBox.Show(
+                        ThemedMessage.Show(
                             "Nothing to add: the collection has no mods of its own, and none of its " +
                             "linked collections were chosen.",
                             "Nothing added", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1237,7 +1237,7 @@ namespace WorkshopManager
             catch (Exception ex)
             {
                 logger.Error($"Could not resolve workshop id {id}: {ex.Message}");
-                MessageBox.Show(
+                ThemedMessage.Show(
                     $"Could not resolve the workshop item:\n{ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 UpdateStatus("Ready");
@@ -1257,7 +1257,7 @@ namespace WorkshopManager
         {
             if (string.IsNullOrWhiteSpace(targetDirBox.Text))
             {
-                MessageBox.Show(
+                ThemedMessage.Show(
                     "Please select the install folder first - that is where the mod info files are stored.",
                     "No install folder", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -1275,7 +1275,7 @@ namespace WorkshopManager
 
             if (installed.Count == 0)
             {
-                MessageBox.Show(
+                ThemedMessage.Show(
                     "No installed mods found yet. The library fills up as you install mods " +
                     "with this app, and it keeps their details even after a mod disappears " +
                     "from the Workshop.",
@@ -1306,7 +1306,7 @@ namespace WorkshopManager
 
             if (targets.Count == 0)
             {
-                MessageBox.Show("The mod list is empty.", "Nothing to check",
+                ThemedMessage.Show("The mod list is empty.", "Nothing to check",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -1318,7 +1318,7 @@ namespace WorkshopManager
             if (pending.Count > 20)
             {
                 var minutes = Math.Max(1, (int)Math.Round(pending.Count * 0.9 / 60.0));
-                if (MessageBox.Show(
+                if (ThemedMessage.Show(
                     "Steam publishes requirements only on each mod's own page, so this needs " +
                     $"{pending.Count} requests and takes about {minutes} minute(s).\n\n" +
                     "Tip: select a few mods first to check only those.\n\nStart now?",
@@ -1447,7 +1447,7 @@ namespace WorkshopManager
 
                 message += "\n\nAdd the missing mods to the list?";
 
-                if (MessageBox.Show(message, "Requirements", MessageBoxButtons.YesNo,
+                if (ThemedMessage.Show(message, "Requirements", MessageBoxButtons.YesNo,
                     MessageBoxIcon.Information) == DialogResult.Yes)
                 {
                     _ = AddMissingRequirementsAsync(missing.Select(r => r.Id).ToList());
@@ -1455,7 +1455,7 @@ namespace WorkshopManager
                 return;
             }
 
-            MessageBox.Show(message, "Requirements", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ThemedMessage.Show(message, "Requirements", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private async Task AddMissingRequirementsAsync(List<string> ids)
@@ -1489,7 +1489,7 @@ namespace WorkshopManager
                 var items = CollectionService.ParseScript(dialog.FileName);
                 if (items.Count == 0)
                 {
-                    MessageBox.Show(
+                    ThemedMessage.Show(
                         "No 'workshop_download_item' commands were found in the selected file.",
                         "Nothing found", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
@@ -1503,7 +1503,7 @@ namespace WorkshopManager
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Could not read script file: {ex.Message}",
+                ThemedMessage.Show($"Could not read script file: {ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1959,7 +1959,7 @@ namespace WorkshopManager
             {
                 // Offer the fix instead of just naming the problem: most people
                 // hitting this have never heard of SteamCMD.
-                var answer = MessageBox.Show(
+                var answer = ThemedMessage.Show(
                     "SteamCMD is needed to download mods from Steam, and it is not set up yet.\n\n" +
                     "Open the settings now? It can download and configure SteamCMD for you.",
                     "SteamCMD missing", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
@@ -1970,7 +1970,7 @@ namespace WorkshopManager
 
             if (string.IsNullOrWhiteSpace(targetDirBox.Text))
             {
-                MessageBox.Show(
+                ThemedMessage.Show(
                     mode == AppMode.Archive ? "Please select an archive folder." : "Please select an install folder.",
                     "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
@@ -1980,7 +1980,7 @@ namespace WorkshopManager
             // one being used in the other before anything is written.
             if (mode == AppMode.Archive && IsGameFolder(targetDirBox.Text))
             {
-                if (MessageBox.Show(
+                if (ThemedMessage.Show(
                         "This looks like a folder mods are installed into for a game.\n\n" +
                         "Archive mode names folders by title and adds images and info files - " +
                         "a game may not load mods laid out like that.\n\n" +
@@ -1990,7 +1990,7 @@ namespace WorkshopManager
             }
             else if (mode == AppMode.Install && SamePath(targetDirBox.Text, settings.ArchiveDirectory))
             {
-                if (MessageBox.Show(
+                if (ThemedMessage.Show(
                         "This is your archive folder.\n\n" +
                         "Install mode lays mods out for a game, not for an archive. " +
                         "Install into this folder anyway?",
@@ -2000,7 +2000,7 @@ namespace WorkshopManager
 
             if (modItems.Count == 0)
             {
-                MessageBox.Show(
+                ThemedMessage.Show(
                     "The mod list is empty. Add a collection or mod first (via the Workshop Browser, " +
                     "a URL, or a SteamCMD script file).",
                     "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -2041,7 +2041,7 @@ namespace WorkshopManager
                 ArchiveInstalledMods();
 
                 var icon = result.Failed == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning;
-                MessageBox.Show(
+                ThemedMessage.Show(
                     $"{(mode == AppMode.Archive ? "Archiving" : "Installation")} finished.\n\n" +
                     $"{(mode == AppMode.Archive ? "Archived" : "Installed")}: {result.Installed}\n" +
                     $"Skipped (already installed): {result.Skipped}\nFailed: {result.Failed}" +
@@ -2052,14 +2052,14 @@ namespace WorkshopManager
             catch (OperationCanceledException)
             {
                 logger.Warning("Installation was cancelled");
-                MessageBox.Show(
+                ThemedMessage.Show(
                     "Installation was cancelled by user.",
                     "Cancelled", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
                 logger.Error($"Installation failed: {ex.Message}");
-                MessageBox.Show(
+                ThemedMessage.Show(
                     $"Installation failed: {ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
@@ -2110,7 +2110,7 @@ namespace WorkshopManager
 
         private void CancelInstallation(object sender, EventArgs e)
         {
-            if (MessageBox.Show(
+            if (ThemedMessage.Show(
                 "Are you sure you want to cancel the running operation?",
                 "Confirm Cancellation",
                 MessageBoxButtons.YesNo,

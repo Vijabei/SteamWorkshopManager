@@ -167,7 +167,7 @@ namespace WorkshopManager
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                ThemedMessage.Show(
                     $"Error loading settings: {ex.Message}\nDefault settings will be used.",
                     "Settings Error",
                     MessageBoxButtons.OK,
@@ -187,7 +187,7 @@ namespace WorkshopManager
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
+                ThemedMessage.Show(
                     $"Error saving settings: {ex.Message}",
                     "Settings Error",
                     MessageBoxButtons.OK,

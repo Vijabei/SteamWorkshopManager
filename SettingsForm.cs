@@ -416,7 +416,7 @@ namespace WorkshopManager
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"The download failed: {ex.Message}",
+                ThemedMessage.Show($"The download failed: {ex.Message}",
                     "SteamCMD", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
@@ -460,7 +460,7 @@ namespace WorkshopManager
         {
             if (!galleryBox.Checked) return;
 
-            var answer = MessageBox.Show(
+            var answer = ThemedMessage.Show(
                 "Saving the gallery reads each mod's Workshop page and downloads every image on it - " +
                 "for a large collection that is thousands of requests.\n\n" +
                 "Steam answers too many requests by blocking you for a while. The app then skips " +
@@ -476,7 +476,7 @@ namespace WorkshopManager
         {
             if (library.Count == 0)
             {
-                MessageBox.Show("There is nothing archived yet. The library fills up as you install mods.",
+                ThemedMessage.Show("There is nothing archived yet. The library fills up as you install mods.",
                     "Nothing to export", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -490,13 +490,13 @@ namespace WorkshopManager
             try
             {
                 var written = ModLibraryExport.Export(library, dialog.SelectedPath);
-                MessageBox.Show(
+                ThemedMessage.Show(
                     $"Wrote {written} mods plus an index to:{Environment.NewLine}{dialog.SelectedPath}",
                     "Export finished", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"The export failed: {ex.Message}",
+                ThemedMessage.Show($"The export failed: {ex.Message}",
                     "Export", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
