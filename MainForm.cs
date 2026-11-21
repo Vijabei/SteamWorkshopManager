@@ -131,7 +131,7 @@ namespace WorkshopManager
             MinimumSize = new Size(850, 600);
             StartPosition = FormStartPosition.CenterScreen;
 
-            tabControl = new TabControl { Dock = DockStyle.Fill };
+            tabControl = new ThemedTabControl { Dock = DockStyle.Fill };
 
             browserTab = new TabPage("Workshop Browser");
             installTab = new TabPage("Mods && Install");
@@ -563,7 +563,7 @@ namespace WorkshopManager
                 TextAlign = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true
             };
-            progressBar = new ProgressBar
+            progressBar = new ThemedProgressBar
             {
                 Dock = DockStyle.Fill,
                 Margin = new Padding(3),

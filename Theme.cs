@@ -359,8 +359,9 @@ namespace WorkshopManager
         }
 
         /// <summary>
-        /// Owner-draws the tab strip and paints over the light 3D frame the
-        /// control puts around the page area, which no property can turn off.
+        /// Sizes the tabs. The painting itself is done by ThemedTabControl:
+        /// a plain TabControl draws the strip beside the tabs and the frame
+        /// around the page natively, in system colours.
         /// </summary>
         public static void StyleTabControl(TabControl tabs)
         {
@@ -368,46 +369,7 @@ namespace WorkshopManager
             tabs.SizeMode = TabSizeMode.Fixed;
             tabs.ItemSize = new Size(150, 30);
             tabs.BackColor = Background;
-
-            if (!hooked.Add(tabs)) return;
-
-            tabs.DrawItem += (s, e) =>
-            {
-                bool selected = e.Index == tabs.SelectedIndex;
-
-                using var background = new SolidBrush(selected ? Background : SurfaceAlt);
-                e.Graphics.FillRectangle(background, e.Bounds);
-
-                if (selected)
-                {
-                    using var underline = new SolidBrush(Accent);
-                    e.Graphics.FillRectangle(underline, e.Bounds.Left, e.Bounds.Bottom - 3,
-                        e.Bounds.Width, 3);
-                }
-
-                TextRenderer.DrawText(e.Graphics, tabs.TabPages[e.Index].Text,
-                    selected ? BoldFont : BaseFont, e.Bounds, selected ? Text : TextDim,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-            };
-
-            tabs.Paint += (s, e) =>
-            {
-                var client = tabs.ClientRectangle;
-
-                // Strip area to the right of the last tab
-                var lastTab = tabs.TabCount > 0
-                    ? tabs.GetTabRect(tabs.TabCount - 1)
-                    : Rectangle.Empty;
-                using var fill = new SolidBrush(Background);
-                e.Graphics.FillRectangle(fill, lastTab.Right, client.Top,
-                    client.Width - lastTab.Right, tabs.ItemSize.Height + 4);
-
-                // Erase the frame around the page
-                var top = tabs.ItemSize.Height + 2;
-                using var eraser = new Pen(Background, 4);
-                e.Graphics.DrawRectangle(eraser, client.Left + 1, top,
-                    client.Width - 3, client.Height - top - 3);
-            };
+            tabs.Invalidate();
         }
 
         /// <summary>
