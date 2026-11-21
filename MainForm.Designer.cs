@@ -16,7 +16,9 @@ namespace WorkshopManager
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
+            // Sizes are written for 96 DPI at normal text size; the base
+            // takes the chosen text size into account (see Theme.LayoutBase)
+            this.AutoScaleDimensions = Theme.LayoutBase;
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
         }
     }

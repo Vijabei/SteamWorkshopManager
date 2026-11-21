@@ -89,6 +89,13 @@ The install path is now covered end to end (see below). Still unexercised:
     against the documented status code, never seen
   - a game with a `mods/` folder in archive mode: it now gets a folder of
     its own instead of being merged
+- **Text size and the tabbed settings dialog**, built on Linux only. Check
+  each step (Small to Largest) at 100 % and 150 % display scaling: the
+  restart offer, nothing clipped in the main window, the settings tabs, the
+  linked collections dialog and the mod description; windows staying on
+  screen at Largest on a 1080p display. Drop-down lists now draw their
+  entries themselves - check the closed box and the open list in both
+  themes.
 
 - **"Check installed / updates" asking Steam first** (issue #3). Built and
   checked on Linux against the WinForms reference assemblies, and the merge

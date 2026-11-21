@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -21,6 +22,7 @@ namespace WorkshopManager
         private readonly TextBox steamCmdBox;
         private readonly TextBox installFolderBox;
         private readonly ComboBox themeCombo;
+        private readonly ComboBox textSizeCombo;
         private readonly ComboBox channelCombo;
         private readonly NumericUpDown batchSize;
         private readonly NumericUpDown retries;
@@ -43,11 +45,11 @@ namespace WorkshopManager
             this.settings = settings;
             this.library = library;
 
-            // Sizes below are written for 96 DPI. Building the dialog with
-            // layout suspended lets resuming it scale everything to the
-            // screen, as in MainForm.
+            // Sizes below are written for 96 DPI at normal text size. Building
+            // the dialog with layout suspended lets resuming it scale
+            // everything to the screen and text size, as in MainForm.
             SuspendLayout();
-            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleDimensions = Theme.LayoutBase;
             AutoScaleMode = AutoScaleMode.Dpi;
 
             Text = "Settings";
@@ -55,30 +57,38 @@ namespace WorkshopManager
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
             MaximizeBox = false;
-            ClientSize = new Size(700, 872);
+            // Tall enough for the longest page, the archive options. One long
+            // scrolling page was cut off at the bottom on smaller screens.
+            ClientSize = new Size(700, 560);
 
-            var layout = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 3,
-                Padding = new Padding(14),
-                AutoScroll = true
-            };
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
-
+            // One tab per topic; each page is a table of rows
+            var tabs = new ThemedTabControl { Dock = DockStyle.Fill };
+            TableLayoutPanel layout = null;
             int row = 0;
 
-            // Rows are sized for the current base font; it grew, so did these.
+            void StartPage(string title)
+            {
+                layout = new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill,
+                    ColumnCount = 3,
+                    Padding = new Padding(14),
+                    AutoScroll = true   // only a fallback, for very large text
+                };
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+                row = 0;
+
+                var page = new TabPage(title);
+                page.Controls.Add(layout);
+                tabs.TabPages.Add(page);
+            }
+
             void AddRow(int height = 36) => layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
 
-            // --- SteamCMD -----------------------------------------------
-            AddRow();
-            var downloadHeading = SectionLabel("Downloading");
-            layout.Controls.Add(downloadHeading, 0, row);
-            layout.SetColumnSpan(downloadHeading, 3);
-            row++;
+            // --- Downloading --------------------------------------------
+            StartPage("Downloading");
 
             AddRow();
             steamCmdBox = new TextBox { Dock = DockStyle.Fill, Margin = new Padding(3), Text = settings.SteamCmdPath };
@@ -149,11 +159,7 @@ namespace WorkshopManager
             // games expect.
             var archive = settings.Archive ?? new ArchiveOptions();
 
-            AddRow(42);
-            var archiveHeading = SectionLabel("Archive mode");
-            layout.Controls.Add(archiveHeading, 0, row);
-            layout.SetColumnSpan(archiveHeading, 3);
-            row++;
+            StartPage("Archive mode");
 
             AddRow(40);
             var archiveIntro = Hint("Used only in archive mode - switched at the top of the main window. " +
@@ -214,17 +220,22 @@ namespace WorkshopManager
             }
 
             // --- Appearance and updates ---------------------------------
-            AddRow(42);
-            var appearanceHeading = SectionLabel("Appearance and updates");
-            layout.Controls.Add(appearanceHeading, 0, row);
-            layout.SetColumnSpan(appearanceHeading, 3);
-            row++;
+            StartPage("Appearance");
 
             AddRow();
             themeCombo = Choice("Dark", "Light");
             themeCombo.SelectedItem = settings.Theme.Equals("Light", StringComparison.OrdinalIgnoreCase) ? "Light" : "Dark";
             layout.Controls.Add(FieldLabel("Theme:"), 0, row);
             layout.Controls.Add(themeCombo, 1, row);
+            row++;
+
+            AddRow();
+            textSizeCombo = Choice(Theme.TextSizes.Select(t => $"{t.Name} ({t.Percent} %)").ToArray());
+            var currentSize = Array.FindIndex(Theme.TextSizes, t => t.Percent == settings.TextSize);
+            textSizeCombo.SelectedIndex = currentSize >= 0 ? currentSize : 1;
+            layout.Controls.Add(FieldLabel("Text size:"), 0, row);
+            layout.Controls.Add(textSizeCombo, 1, row);
+            layout.Controls.Add(Hint("Applies after\na restart"), 2, row);
             row++;
 
             AddRow();
@@ -248,11 +259,7 @@ namespace WorkshopManager
             row++;
 
             // --- Library -------------------------------------------------
-            AddRow(42);
-            var libraryHeading = SectionLabel("Mod library");
-            layout.Controls.Add(libraryHeading, 0, row);
-            layout.SetColumnSpan(libraryHeading, 3);
-            row++;
+            StartPage("Mod library");
 
             AddRow(46);
             var libraryInfo = new Label
@@ -292,7 +299,7 @@ namespace WorkshopManager
             buttons.Controls.Add(cancel);
             buttons.Controls.Add(ok);
 
-            Controls.Add(layout);
+            Controls.Add(tabs);
             Controls.Add(buttons);
             CancelButton = cancel;
 
@@ -304,16 +311,8 @@ namespace WorkshopManager
 
             ResumeLayout(false);
             PerformLayout();
+            Theme.FitToScreen(this);
         }
-
-        private static Label SectionLabel(string text) => new()
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            Font = Theme.BoldFont,
-            TextAlign = ContentAlignment.BottomLeft,
-            Margin = new Padding(0, 6, 0, 2)
-        };
 
         private static Label FieldLabel(string text) => new()
         {
@@ -537,6 +536,7 @@ namespace WorkshopManager
                 CollectionFolders = collectionFoldersBox.Checked
             };
             settings.Theme = themeCombo.SelectedItem as string ?? "Dark";
+            if (textSizeCombo.SelectedIndex >= 0) settings.TextSize = Theme.TextSizes[textSizeCombo.SelectedIndex].Percent;
             settings.UpdateChannel = channelCombo.SelectedItem as string ?? "Stable";
             settings.Save();
 

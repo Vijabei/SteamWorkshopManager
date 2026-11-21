@@ -26,7 +26,7 @@ namespace WorkshopManager
         {
             // Written for 96 DPI and scaled on ResumeLayout, as in MainForm
             SuspendLayout();
-            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleDimensions = Theme.LayoutBase;
             AutoScaleMode = AutoScaleMode.Dpi;
 
             var name = string.IsNullOrWhiteSpace(root.Title) ? $"Collection {root.Id}" : root.Title;
@@ -138,6 +138,7 @@ namespace WorkshopManager
 
             ResumeLayout(false);
             PerformLayout();
+            Theme.FitToScreen(this);
         }
 
         private void SetAll(bool value)

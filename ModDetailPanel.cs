@@ -305,6 +305,12 @@ namespace WorkshopManager
             descriptionBox.BackColor = Theme.SurfaceAlt;
             descriptionBox.ForeColor = Theme.Text;
 
+            // The document carries fixed point sizes; the zoom applies the
+            // chosen text size. New content resets the zoom inside the control
+            // without the property noticing, hence the detour through 1.
+            descriptionBox.ZoomFactor = 1f;
+            descriptionBox.ZoomFactor = Theme.TextScale;
+
             descriptionBox.Select(0, 0);
             descriptionBox.ScrollToCaret();
         }

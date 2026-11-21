@@ -103,6 +103,7 @@ namespace WorkshopManager
 
                 mode = settings.AppMode;
                 Theme.SetArchiveAccent(mode == AppMode.Archive);
+                Theme.SetTextScale(settings.TextSize);
 
                 // Everything is built while layout is suspended, so that
                 // resuming it scales the whole tree from 96 DPI to the
@@ -114,6 +115,7 @@ namespace WorkshopManager
                 ApplyTheme();
                 ResumeLayout(false);
                 PerformLayout();
+                Theme.FitToScreen(this);
 
                 logger = new Logger(logBox);
 
@@ -151,11 +153,11 @@ namespace WorkshopManager
         #region UI setup
 
         /// <summary>
-        /// A size written for 96 DPI, in pixels on this screen. Only needed
-        /// for sizes set at run time; the layout built in SetupUI is scaled
-        /// as a whole.
+        /// A size written for 96 DPI at normal text size, in pixels on this
+        /// screen at the chosen text size. Only needed for sizes set at run
+        /// time; the layout built in SetupUI is scaled as a whole.
         /// </summary>
-        private int Px(int logical) => LogicalToDeviceUnits(logical);
+        private int Px(int logical) => LogicalToDeviceUnits((int)Math.Round(logical * Theme.TextScale));
 
         private void SetupUI()
         {
@@ -398,6 +400,30 @@ namespace WorkshopManager
             else settings.LastTargetDirectory = targetDirBox.Text;
         }
 
+        /// <summary>
+        /// The window is laid out once, at the text size it was built with, so
+        /// a new size needs a fresh start. The lists are not stored, so the
+        /// question says what a restart costs.
+        /// </summary>
+        private void OfferRestartForTextSize()
+        {
+            var listed = installItems.Count + archiveItems.Count;
+
+            var answer = MessageBox.Show(
+                "The new text size is used from the next start of the app.\n\n" +
+                "Restart now?" +
+                (listed > 0 ? $"\n\nThe {listed} mods in the lists are not kept - they can be added again, " +
+                              "or loaded with \"Load installed library\"." : ""),
+                "Text size", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (answer != DialogResult.Yes) return;
+
+            StoreFolderOfMode();
+            settings.AppMode = mode;
+            settings.Save();
+            Application.Restart();
+        }
+
         private void ExplainArchiveMigration()
         {
             MessageBox.Show(
@@ -450,8 +476,11 @@ namespace WorkshopManager
         {
             // The dialog edits both folders; hand it the one being typed here
             StoreFolderOfMode();
+            var textSizeBefore = settings.TextSize;
             using var dialog = new SettingsForm(settings, library);
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            if (settings.TextSize != textSizeBefore) OfferRestartForTextSize();
 
             targetDirBox.Text = FolderOfMode(mode);
             cleanupCheckBox.Checked = settings.CleanupAfterInstall;
@@ -838,7 +867,7 @@ namespace WorkshopManager
                 Dock = DockStyle.Fill,
                 ReadOnly = true,
                 BackColor = Color.White,
-                Font = new Font(FontFamily.GenericMonospace, 9)
+                Font = new Font(FontFamily.GenericMonospace, 9 * Theme.TextScale)
             };
             logTab.Controls.Add(logBox);
         }

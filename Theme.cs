@@ -53,10 +53,64 @@ namespace WorkshopManager
         public static Color Error { get; private set; }
         public static Color Muted { get; private set; }
 
-        public static readonly Font BaseFont = new("Segoe UI", 9.75F);
-        public static readonly Font BoldFont = new("Segoe UI", 9.75F, FontStyle.Bold);
-        public static readonly Font TitleFont = new("Segoe UI Semibold", 13F);
-        public static readonly Font SmallFont = new("Segoe UI", 9F);
+        // Set by SetTextScale before any window is built
+        public static Font BaseFont { get; private set; }
+        public static Font BoldFont { get; private set; }
+        public static Font TitleFont { get; private set; }
+        public static Font SmallFont { get; private set; }
+
+        /// <summary>
+        /// The text sizes offered in the settings, in percent of the normal
+        /// size, with their names.
+        /// </summary>
+        public static readonly (int Percent, string Name)[] TextSizes =
+        {
+            (90, "Small"), (100, "Normal"), (115, "Large"), (130, "Larger"), (150, "Largest")
+        };
+
+        /// <summary>The chosen text size as a factor, 1 for normal.</summary>
+        public static float TextScale { get; private set; } = 1f;
+
+        /// <summary>
+        /// Sets the text size for every window built from now on. The whole
+        /// layout grows with it - rows, columns, margins - since windows are
+        /// laid out against <see cref="LayoutBase"/>. Windows that already
+        /// exist keep their size; the main window is rebuilt by a restart.
+        /// </summary>
+        public static void SetTextScale(int percent)
+        {
+            var known = Array.Exists(TextSizes, t => t.Percent == percent);
+            TextScale = (known ? percent : 100) / 100f;
+
+            BaseFont = new Font("Segoe UI", 9.75F * TextScale);
+            BoldFont = new Font("Segoe UI", 9.75F * TextScale, FontStyle.Bold);
+            TitleFont = new Font("Segoe UI Semibold", 13F * TextScale);
+            SmallFont = new Font("Segoe UI", 9F * TextScale);
+        }
+
+        /// <summary>
+        /// The AutoScaleDimensions every window is built against. Its sizes
+        /// are written for 96 DPI at normal text size; claiming a smaller base
+        /// than 96 makes WinForms scale them by DPI and text size in one go.
+        /// </summary>
+        public static SizeF LayoutBase => new(96F / TextScale, 96F / TextScale);
+
+        /// <summary>
+        /// Keeps a window on its screen. Large text on a small screen can make
+        /// the scaled layout bigger than the screen itself.
+        /// </summary>
+        public static void FitToScreen(Form form)
+        {
+            var area = Screen.FromControl(form).WorkingArea;
+
+            form.MinimumSize = new Size(
+                Math.Min(form.MinimumSize.Width, area.Width),
+                Math.Min(form.MinimumSize.Height, area.Height));
+
+            form.Size = new Size(
+                Math.Min(form.Width, area.Width),
+                Math.Min(form.Height, area.Height));
+        }
 
         /// <summary>
         /// Controls whose owner-draw handlers are already attached. Applying a
@@ -70,7 +124,11 @@ namespace WorkshopManager
         // time the button is disabled and re-enabled.
         private static readonly HashSet<Button> primaryButtons = new();
 
-        static Theme() => SetMode(ThemeMode.Dark);
+        static Theme()
+        {
+            SetTextScale(100);
+            SetMode(ThemeMode.Dark);
+        }
 
         /// <summary>Switches the accent between install (green) and archive (blue).</summary>
         public static void SetArchiveAccent(bool archive)
@@ -224,6 +282,7 @@ namespace WorkshopManager
                     combo.FlatStyle = FlatStyle.Flat;
                     combo.BackColor = SurfaceAlt;
                     combo.ForeColor = Text;
+                    StyleComboItems(combo);
                     break;
 
                 case NumericUpDown numeric:
@@ -268,6 +327,45 @@ namespace WorkshopManager
             {
                 Apply(child);
             }
+        }
+
+        /// <summary>
+        /// Draws the entries of a drop-down list from the palette. Otherwise
+        /// the chosen entry sits in the system's bright highlight colour,
+        /// which glares in the dark window.
+        /// </summary>
+        private static void StyleComboItems(ComboBox combo)
+        {
+            combo.DrawMode = DrawMode.OwnerDrawFixed;
+            combo.ItemHeight = combo.Font.Height + 4;
+
+            if (!hooked.Add(combo)) return;
+
+            combo.DrawItem += (s, e) =>
+            {
+                if (e.Index < 0) return;
+
+                var box = (ComboBox)s;
+                bool inList = (e.State & DrawItemState.ComboBoxEdit) == 0;
+                bool highlighted = inList && (e.State & DrawItemState.Selected) != 0;
+
+                using (var background = new SolidBrush(highlighted ? SurfaceHover : SurfaceAlt))
+                {
+                    e.Graphics.FillRectangle(background, e.Bounds);
+                }
+
+                if (highlighted)
+                {
+                    using var marker = new SolidBrush(Accent);
+                    e.Graphics.FillRectangle(marker, e.Bounds.Left, e.Bounds.Top, 3, e.Bounds.Height);
+                }
+
+                var bounds = Rectangle.Inflate(e.Bounds, -4, 0);
+                bounds.X += 2;
+                TextRenderer.DrawText(e.Graphics, box.GetItemText(box.Items[e.Index]), box.Font, bounds,
+                    box.Enabled ? Text : Muted,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            };
         }
 
         /// <summary>Flat accent button used for the main action.</summary>
@@ -419,7 +517,8 @@ namespace WorkshopManager
             tabs.SizeMode = TabSizeMode.Fixed;
             // Set again on every theme switch, after the form has been
             // scaled, so it is scaled here rather than by the form.
-            tabs.ItemSize = tabs.LogicalToDeviceUnits(new Size(150, 30));
+            tabs.ItemSize = tabs.LogicalToDeviceUnits(
+                new Size((int)Math.Round(150 * TextScale), (int)Math.Round(30 * TextScale)));
             tabs.BackColor = Background;
             tabs.Invalidate();
         }

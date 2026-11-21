@@ -45,6 +45,12 @@ namespace WorkshopManager
         /// system's own dark mode setting.</summary>
         public string Theme { get; set; } = "Dark";
 
+        /// <summary>
+        /// Text size in percent of normal, one of the steps the settings offer
+        /// (90, 100, 115, 130, 150). The layout grows with it.
+        /// </summary>
+        public int TextSize { get; set; } = 100;
+
         // Auto-update
         /// <summary>Check GitHub for a newer release on startup.</summary>
         public bool CheckForUpdates { get; set; } = true;
