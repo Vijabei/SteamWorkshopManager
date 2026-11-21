@@ -312,12 +312,32 @@ namespace WorkshopManager
         /// A disabled flat button is drawn in a washed out system grey that
         /// all but disappears on a dark surface, so the states are painted
         /// from the palette instead.
+        ///
+        /// Colours alone do not reach the text: Windows draws the label of a
+        /// disabled button in its own fixed grey whatever ForeColor says -
+        /// "Cancel" was barely visible on the dark surface. So the label of a
+        /// disabled button is painted over once more, in the palette's colour.
         /// </summary>
         private static void HookButtonState(Button button)
         {
             if (hooked.Add(button))
             {
                 button.EnabledChanged += (s, e) => ApplyButtonState((Button)s);
+                button.Paint += (s, e) =>
+                {
+                    var b = (Button)s;
+                    if (b.Enabled) return;
+
+                    var inner = Rectangle.Inflate(b.ClientRectangle, -2, -2);
+                    using (var fill = new SolidBrush(b.BackColor))
+                    {
+                        e.Graphics.FillRectangle(fill, inner);
+                    }
+
+                    TextRenderer.DrawText(e.Graphics, b.Text, b.Font, inner, Muted, b.BackColor,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                        TextFormatFlags.EndEllipsis);
+                };
             }
         }
 

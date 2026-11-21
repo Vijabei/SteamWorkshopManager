@@ -284,12 +284,12 @@ namespace WorkshopManager
             layout.Controls.Add(modeDescription, 2, 0);
             modeBar.Controls.Add(layout);
 
-            // A separator in install mode; in archive mode a band in the
-            // archive colour, so the mode shows even at a glance.
+            // A band in the mode's colour - green for install, blue for the
+            // archive - so the mode shows even at a glance.
             modeBar.Paint += (s, e) =>
             {
-                var height = mode == AppMode.Archive ? Px(4) : 1;
-                using var band = new SolidBrush(mode == AppMode.Archive ? Theme.Accent : Theme.Border);
+                var height = Px(4);
+                using var band = new SolidBrush(Theme.Accent);
                 e.Graphics.FillRectangle(band, 0, modeBar.Height - height, modeBar.Width, height);
             };
         }
@@ -322,6 +322,23 @@ namespace WorkshopManager
             modeDescription.ForeColor = Theme.Text;
             modeDescription.BackColor = Color.Transparent;
             modeBar.Invalidate();
+
+            StyleSettingsButton();
+        }
+
+        /// <summary>
+        /// The settings are where SteamCMD, the folders and the archive options
+        /// live, so the button stands out from its neighbours: accent text and
+        /// border, without competing with the filled main button.
+        /// </summary>
+        private void StyleSettingsButton()
+        {
+            if (settingsButton == null) return;
+
+            settingsButton.Font = Theme.BoldFont;
+            settingsButton.FlatAppearance.BorderColor = settingsButton.Enabled ? Theme.Accent : Theme.Border;
+            if (settingsButton.Enabled) settingsButton.ForeColor = Theme.Accent;
+            if (bottomBar != null) PositionThemeButton(bottomBar);
         }
 
         /// <summary>Puts the current mode into every label that depends on it.</summary>
