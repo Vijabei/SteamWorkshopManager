@@ -26,6 +26,13 @@ namespace WorkshopManager
     {
         public static ThemeMode Mode { get; private set; } = ThemeMode.Dark;
 
+        /// <summary>
+        /// True in archive mode. The accent turns from the SoftKnight green to
+        /// blue there, so the whole window says which mode it is in - the
+        /// selected tab, the main button, list selection and the mode bar.
+        /// </summary>
+        public static bool ArchiveAccent { get; private set; }
+
         // Surfaces
         public static Color Background { get; private set; }
         public static Color Surface { get; private set; }
@@ -64,6 +71,13 @@ namespace WorkshopManager
         private static readonly HashSet<Button> primaryButtons = new();
 
         static Theme() => SetMode(ThemeMode.Dark);
+
+        /// <summary>Switches the accent between install (green) and archive (blue).</summary>
+        public static void SetArchiveAccent(bool archive)
+        {
+            ArchiveAccent = archive;
+            SetMode(Mode);
+        }
 
         public static void SetMode(ThemeMode mode)
         {
@@ -107,6 +121,22 @@ namespace WorkshopManager
                 Warning = Color.FromArgb(140, 105, 10);       // #8C690A
                 Error = Color.FromArgb(190, 40, 40);          // #BE2828
                 Muted = Color.FromArgb(122, 128, 136);
+            }
+
+            if (ArchiveAccent)
+            {
+                if (mode == ThemeMode.Dark)
+                {
+                    Accent = Color.FromArgb(96, 165, 250);        // #60A5FA
+                    AccentHover = Color.FromArgb(125, 183, 252);  // #7DB7FC
+                    TextOnAccent = Color.FromArgb(12, 24, 42);
+                }
+                else
+                {
+                    Accent = Color.FromArgb(37, 99, 235);         // #2563EB
+                    AccentHover = Color.FromArgb(29, 78, 216);    // #1D4ED8
+                    TextOnAccent = Color.White;
+                }
             }
         }
 

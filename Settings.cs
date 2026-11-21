@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System.Windows.Forms;
 
 namespace WorkshopManager
@@ -58,43 +59,90 @@ namespace WorkshopManager
         public string SkippedUpdateVersion { get; set; } = "";
 
         /// <summary>
-        /// "Id" or "Title". Mods install into a folder named after their
-        /// Workshop id by default, which is what most games expect. "Title"
-        /// produces readable folders for archiving instead.
+        /// "Install" or "Archive": the mode the app was left in, restored on
+        /// the next start.
         /// </summary>
-        public string ModFolderNaming { get; set; } = "Id";
+        public string Mode { get; set; } = "Install";
+
+        [JsonIgnore]
+        public AppMode AppMode
+        {
+            get => "Archive".Equals(Mode, StringComparison.OrdinalIgnoreCase) ? AppMode.Archive : AppMode.Install;
+            set => Mode = value.ToString();
+        }
 
         /// <summary>
-        /// Stamp installed files with the date the mod was published on the
-        /// Workshop instead of leaving the download time on them.
+        /// The archive mode's folder. Kept apart from the install folder, so
+        /// switching modes never sends one kind of layout into the other's
+        /// folder.
         /// </summary>
-        public bool UseWorkshopDates { get; set; } = false;
+        public string ArchiveDirectory { get; set; } = "";
+
+        /// <summary>Options that apply in archive mode only.</summary>
+        public ArchiveOptions Archive { get; set; } = new();
 
         /// <summary>
-        /// Put the Workshop preview image into each mod's folder, as the
-        /// original file Steam serves, so an archived mod carries its picture.
+        /// Set while loading when the archiving options of version 1.3 were
+        /// moved into the archive mode, so the window can say so once.
         /// </summary>
-        public bool SavePreviewImage { get; set; } = false;
+        [JsonIgnore]
+        public bool ArchiveSettingsMigrated { get; private set; }
+
+        // --- Read from settings files of 1.3, never written again ----------
+        // Version 1.3 had the archiving options in the one and only mode.
+        // They now belong to the archive mode; see MigrateArchiveOptions.
+
+        public string ModFolderNaming { get; set; }
+        public bool? UseWorkshopDates { get; set; }
+        public bool? SavePreviewImage { get; set; }
+        public bool? CreateWorkshopLink { get; set; }
+        public bool? InfoFileInsideModFolder { get; set; }
+        public bool? CollectionFolders { get; set; }
+
+        public bool ShouldSerializeModFolderNaming() => false;
+        public bool ShouldSerializeUseWorkshopDates() => false;
+        public bool ShouldSerializeSavePreviewImage() => false;
+        public bool ShouldSerializeCreateWorkshopLink() => false;
+        public bool ShouldSerializeInfoFileInsideModFolder() => false;
+        public bool ShouldSerializeCollectionFolders() => false;
 
         /// <summary>
-        /// Put a "Workshop page.url" shortcut into each mod's folder, so a
-        /// folder can be traced back to its Workshop page with a double click.
+        /// Moves the archiving options of a 1.3 settings file into the
+        /// archive mode. Someone who turned any of them on was building an
+        /// archive, so the app starts in archive mode, on the same folder and
+        /// with exactly the options they chose - nothing changes for them
+        /// except where the options live. Everyone else keeps installing as
+        /// before and finds the archive mode with its own defaults.
         /// </summary>
-        public bool CreateWorkshopLink { get; set; } = false;
+        internal void MigrateArchiveOptions(bool fileHadArchiveSection)
+        {
+            bool anyLegacy =
+                "Title".Equals(ModFolderNaming, StringComparison.OrdinalIgnoreCase) ||
+                UseWorkshopDates == true || SavePreviewImage == true || CreateWorkshopLink == true ||
+                InfoFileInsideModFolder == true || CollectionFolders == true;
 
-        /// <summary>
-        /// Write each mod's mod_&lt;id&gt;.info file into the mod's own folder
-        /// instead of beside it. Mods that are merged into a shared folder
-        /// have no folder of their own and keep it beside.
-        /// </summary>
-        public bool InfoFileInsideModFolder { get; set; } = false;
+            if (!fileHadArchiveSection && anyLegacy)
+            {
+                Archive = new ArchiveOptions
+                {
+                    FoldersByTitle = "Title".Equals(ModFolderNaming, StringComparison.OrdinalIgnoreCase),
+                    WorkshopDates = UseWorkshopDates == true,
+                    PreviewImage = SavePreviewImage == true,
+                    WorkshopLink = CreateWorkshopLink == true,
+                    InfoInside = InfoFileInsideModFolder == true,
+                    CollectionFolders = CollectionFolders == true,
+                    Gallery = false
+                };
+                AppMode = AppMode.Archive;
+                if (string.IsNullOrWhiteSpace(ArchiveDirectory)) ArchiveDirectory = LastTargetDirectory;
+                ArchiveSettingsMigrated = true;
+            }
 
-        /// <summary>
-        /// Install the mods of a collection into a folder named after the
-        /// collection. For archives only: games expect their mods directly in
-        /// their mod folder.
-        /// </summary>
-        public bool CollectionFolders { get; set; } = false;
+            ModFolderNaming = null;
+            UseWorkshopDates = SavePreviewImage = CreateWorkshopLink = null;
+            InfoFileInsideModFolder = CollectionFolders = null;
+            Archive ??= new ArchiveOptions();
+        }
 
         /// <summary>Per-game overrides keyed by app id.</summary>
         public Dictionary<string, GameRule> GameRules { get; set; } = new();
@@ -105,8 +153,10 @@ namespace WorkshopManager
             {
                 if (File.Exists(SettingsPath))
                 {
-                    var json = File.ReadAllText(SettingsPath);
-                    return JsonConvert.DeserializeObject<Settings>(json) ?? new Settings();
+                    var json = JObject.Parse(File.ReadAllText(SettingsPath));
+                    var loaded = json.ToObject<Settings>() ?? new Settings();
+                    loaded.MigrateArchiveOptions(json["Archive"] != null);
+                    return loaded;
                 }
             }
             catch (Exception ex)

@@ -43,7 +43,7 @@ namespace WorkshopManager
         private readonly Logger logger;
         private readonly string steamCmdPath;
         private readonly string targetDir;
-        private readonly Settings settings;
+        private readonly ModLayout layout;
 
         /// <summary>
         /// Installed mods as found on disk. Built lazily and kept for the
@@ -52,12 +52,15 @@ namespace WorkshopManager
         /// </summary>
         private InstalledIndex index = new();
 
-        public InstallationService(Logger logger, string steamCmdPath, string targetDir, Settings settings)
+        /// <summary>One per run, so a block by Steam is remembered across mods.</summary>
+        private GalleryService gallery;
+
+        public InstallationService(Logger logger, string steamCmdPath, string targetDir, ModLayout layout)
         {
             this.logger = logger;
             this.steamCmdPath = steamCmdPath;
             this.targetDir = targetDir;
-            this.settings = settings;
+            this.layout = layout ?? new ModLayout();
         }
 
         private string WorkshopContentBase => Path.Combine(
@@ -71,11 +74,11 @@ namespace WorkshopManager
         /// Resolves the install directory for a game: a per-game rule from
         /// the settings wins, otherwise the global target directory is used.
         /// </summary>
-        public static string ResolveTargetDir(Settings settings, string defaultTargetDir, string appId)
+        public static string ResolveTargetDir(ModLayout layout, string defaultTargetDir, string appId)
         {
-            if (settings?.GameRules != null &&
+            if (layout?.GameRules != null &&
                 !string.IsNullOrEmpty(appId) &&
-                settings.GameRules.TryGetValue(appId, out var rule) &&
+                layout.GameRules.TryGetValue(appId, out var rule) &&
                 !string.IsNullOrWhiteSpace(rule?.TargetDirectory))
             {
                 return rule.TargetDirectory;
@@ -120,9 +123,9 @@ namespace WorkshopManager
         /// installed below its game's install folder.
         /// </summary>
         public static InstallLocation FindInstalled(
-            Settings settings, string defaultTargetDir, WorkshopItem mod, InstalledIndex index)
+            ModLayout layout, string defaultTargetDir, WorkshopItem mod, InstalledIndex index)
         {
-            var gameTarget = ResolveTargetDir(settings, defaultTargetDir, mod.AppId);
+            var gameTarget = ResolveTargetDir(layout, defaultTargetDir, mod.AppId);
             return index.Find(gameTarget, mod.ModId);
         }
 
@@ -136,21 +139,21 @@ namespace WorkshopManager
         /// on - the same rule folders named by title have always followed.
         /// </summary>
         public static InstallLocation PlanLocation(
-            Settings settings, string defaultTargetDir, WorkshopItem mod, InstalledIndex index)
+            ModLayout layout, string defaultTargetDir, WorkshopItem mod, InstalledIndex index)
         {
-            var gameTarget = ResolveTargetDir(settings, defaultTargetDir, mod.AppId);
+            var gameTarget = ResolveTargetDir(layout, defaultTargetDir, mod.AppId);
 
             var existing = index.Find(gameTarget, mod.ModId);
             if (existing != null) return existing;
 
-            var (baseDir, collection) = CollectionDir(settings, gameTarget, mod, index);
+            var (baseDir, collection) = CollectionDir(layout, gameTarget, mod, index);
 
             return new InstallLocation
             {
                 ModId = mod.ModId,
                 BaseDir = baseDir,
-                FolderName = NewFolderName(settings, mod, baseDir),
-                InfoInside = settings?.InfoFileInsideModFolder == true,
+                FolderName = NewFolderName(layout, mod, baseDir),
+                InfoInside = layout?.InfoInside == true,
                 CollectionTitle = collection,
                 LinkedCollectionTitle = collection.Length > 0 ? mod.LinkedCollectionTitle : ""
             };
@@ -164,9 +167,9 @@ namespace WorkshopManager
         /// so the collections stay apart.
         /// </summary>
         private static (string Dir, string Collection) CollectionDir(
-            Settings settings, string gameTarget, WorkshopItem mod, InstalledIndex index)
+            ModLayout layout, string gameTarget, WorkshopItem mod, InstalledIndex index)
         {
-            if (settings?.CollectionFolders != true) return (gameTarget, "");
+            if (layout?.CollectionFolders != true) return (gameTarget, "");
 
             var name = SanitiseFolderName(mod.CollectionTitle);
             if (name.Length == 0) return (gameTarget, "");
@@ -193,12 +196,9 @@ namespace WorkshopManager
         /// games and this app identify mods by it; titles are for people who
         /// archive mods.
         /// </summary>
-        private static string NewFolderName(Settings settings, WorkshopItem mod, string baseDir)
+        private static string NewFolderName(ModLayout layout, WorkshopItem mod, string baseDir)
         {
-            var byTitle = settings != null &&
-                          "Title".Equals(settings.ModFolderNaming, StringComparison.OrdinalIgnoreCase);
-
-            if (!byTitle) return mod.ModId;
+            if (layout?.FoldersByTitle != true) return mod.ModId;
 
             var name = SanitiseFolderName(mod.Title);
             if (name.Length == 0) return mod.ModId;
@@ -383,14 +383,14 @@ namespace WorkshopManager
         /// directories by reading the mod_&lt;id&gt;.info files written at
         /// install time. Works entirely offline.
         /// </summary>
-        public static List<WorkshopItem> LoadInstalledMods(Settings settings, string defaultTargetDir)
+        public static List<WorkshopItem> LoadInstalledMods(ModLayout layout, string defaultTargetDir)
         {
             var directories = new List<string>();
             if (!string.IsNullOrWhiteSpace(defaultTargetDir)) directories.Add(defaultTargetDir);
 
-            if (settings?.GameRules != null)
+            if (layout?.GameRules != null)
             {
-                foreach (var rule in settings.GameRules.Values)
+                foreach (var rule in layout.GameRules.Values)
                 {
                     if (!string.IsNullOrWhiteSpace(rule?.TargetDirectory))
                     {
@@ -430,6 +430,7 @@ namespace WorkshopManager
 
             // The disk may have changed since this service was created
             index = new InstalledIndex();
+            gallery = layout.Gallery ? new GalleryService(logger) : null;
 
             // The message is built after the counter is raised, so a message
             // can name the number of mods finished including this one. Passing
@@ -463,7 +464,7 @@ namespace WorkshopManager
 
                     if (options.SkipInstalledMods &&
                         mod.Status != WorkshopItemStatus.UpdateAvailable &&
-                        FindInstalled(settings, targetDir, mod, index) != null)
+                        FindInstalled(layout, targetDir, mod, index) != null)
                     {
                         mod.Status = WorkshopItemStatus.Skipped;
                         statusChanged?.Invoke(mod);
@@ -644,16 +645,17 @@ namespace WorkshopManager
                 logger.Info($"Installing mod {mod.ModId} ({mod.Title})...");
 
                 string sourceDir = Path.Combine(WorkshopContentBase, mod.AppId, mod.ModId);
-                string gameTarget = ResolveTargetDir(settings, targetDir, mod.AppId);
+                string gameTarget = ResolveTargetDir(layout, targetDir, mod.AppId);
 
-                var location = PlanLocation(settings, targetDir, mod, index);
+                var location = PlanLocation(layout, targetDir, mod, index);
                 Directory.CreateDirectory(location.BaseDir);
 
                 // Some games (e.g. mods shipping a "mods" folder) expect the
                 // folder contents merged into the target; everything else is
                 // installed as its own subfolder.
+                // An archive keeps every mod in a folder of its own instead.
                 string modsSubDir = Path.Combine(sourceDir, "mods");
-                bool merged = Directory.Exists(modsSubDir);
+                bool merged = layout.MergeModsFolder && Directory.Exists(modsSubDir);
 
                 // Merged mods have no folder of their own to hold the info file
                 if (merged) location.InfoInside = false;
@@ -682,16 +684,18 @@ namespace WorkshopManager
                 // because creating a file changes its folder's date, and the
                 // dates are set last.
                 (string Path, DateTime? Uploaded) preview = (null, null);
+                var galleryImages = new List<(string Path, DateTime? Uploaded)>();
                 if (installedTo != null)
                 {
                     preview = await AddArchiveExtrasAsync(installedTo, mod, cancellationToken);
+                    if (gallery != null) galleryImages = await gallery.SaveAsync(mod, installedTo, cancellationToken);
                 }
 
                 await WriteInfoFileAsync(location, mod,
-                    settings?.UseWorkshopDates == true, cancellationToken);
+                    layout.WorkshopDates, cancellationToken);
                 index.Record(gameTarget, location);
 
-                if (installedTo != null && settings?.UseWorkshopDates == true)
+                if (installedTo != null && layout.WorkshopDates)
                 {
                     ApplyWorkshopDates(installedTo, mod);
 
@@ -699,6 +703,7 @@ namespace WorkshopManager
                     // uploaded - and that is the truer one for it. Changing a
                     // file's date leaves its folder's alone.
                     if (preview.Path != null) ImageCache.StampDate(preview.Path, preview.Uploaded);
+                    foreach (var image in galleryImages) ImageCache.StampDate(image.Path, image.Uploaded);
                 }
 
                 mod.Status = WorkshopItemStatus.Installed;
@@ -840,7 +845,7 @@ namespace WorkshopManager
         {
             (string Path, DateTime? Uploaded) preview = (null, null);
 
-            if (settings?.CreateWorkshopLink == true)
+            if (layout.WorkshopLink)
             {
                 try
                 {
@@ -859,7 +864,7 @@ namespace WorkshopManager
                 }
             }
 
-            if (settings?.SavePreviewImage == true)
+            if (layout.PreviewImage)
             {
                 if (string.IsNullOrWhiteSpace(mod.PreviewUrl))
                 {

@@ -22,7 +22,7 @@ A Windows application designed to simplify the installation and management of St
 - 📤 Export the library as Markdown files (one per mod, with YAML front matter) for your own notes or a server wiki
 - 🎨 Dark and light theme, switchable at any time
 - ⚙️ Settings dialog for SteamCMD, install folder, batch size, retries and update channel
-- 🗂️ Archiving options: folders named after the mod, files dated by the Workshop, the preview image and a link to the Workshop page saved into each mod folder, the info file kept inside the mod folder, and one folder per collection, with a `[name]` subfolder for each linked collection
+- 🗂️ A separate **archive mode** for keeping mods outside of games, with its own folder and list: folders named after the mod, files dated by the Workshop, the preview image, the gallery images (optional) and a link to the Workshop page saved into each mod folder, the info file kept inside the mod folder, and one folder per collection, with a `[name]` subfolder for each linked collection
 - ⏭️ Skips already installed mods (optional) and detects available updates
 - ♻️ Updates replace a mod's folder as a whole, so files the author removed do not linger
 - 📊 Real-time progress tracking and cancellable operations
@@ -50,9 +50,20 @@ SteamCMD is **not** required upfront — the app can download and set it up for 
    - Import a legacy SteamCMD script file via **Load script...**
 5. Click **Install Mods**
 
+### Install mode and archive mode
+
+The switch at the top of the window chooses what the app does with the mods:
+
+- **Install for games** puts mods into the game's mod folder, laid out the way the game expects (folders named by Workshop id).
+- **Archive** keeps mods for preservation in a separate archive folder, with everything Steam knows about them. Its options live under **Settings → Archive mode** and are all on by default, except the gallery images.
+
+Each mode has its own folder and its own mod list, and the window turns blue in archive mode, so the two are not confused. Archived mods are named by title: to play one, copy its folder into the game and rename it to the id in its `mod_<id>.info` file.
+
+Saving the **gallery images** reads each mod's Workshop page - many extra requests for a large collection. Steam may block you for a while when there are too many; the app then skips the remaining galleries and still installs the mods. Use it at your own risk.
+
 ## Notes on Steam usage
 
-- Collections are resolved through the official, public Steam Web API — no login, no API key, and no HTML scraping involved.
+- Collections are resolved through the official, public Steam Web API — no login and no API key. The Workshop page itself is only read for a mod's requirements and, in archive mode and only when turned on, for its gallery images.
 - Downloads use SteamCMD with anonymous login. Some games do not allow anonymous workshop downloads; affected items are reported as failed in the mod list.
 - Downloads run in small batches with automatic retries to stay well within Steam's limits.
 - Your Steam credentials are never requested or stored by this application.

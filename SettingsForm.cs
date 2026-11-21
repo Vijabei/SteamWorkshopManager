@@ -33,6 +33,9 @@ namespace WorkshopManager
         private readonly CheckBox workshopLinkBox;
         private readonly CheckBox infoInsideBox;
         private readonly CheckBox collectionFoldersBox;
+        private readonly CheckBox galleryBox;
+        private readonly TextBox archiveFolderBox;
+        private readonly Label galleryWarning;
         private readonly Label steamCmdState;
 
         public SettingsForm(Settings settings, ModLibrary library)
@@ -140,82 +143,75 @@ namespace WorkshopManager
             layout.SetColumnSpan(skipInstalledBox, 2);
             row++;
 
-            // --- Archiving ------------------------------------------------
+            // --- Archive mode ---------------------------------------------
+            // Only used in archive mode, which is switched in the main window.
+            // Install mode has none of these: it always lays mods out the way
+            // games expect.
+            var archive = settings.Archive ?? new ArchiveOptions();
+
             AddRow(42);
-            var archiveHeading = SectionLabel("Archiving");
+            var archiveHeading = SectionLabel("Archive mode");
             layout.Controls.Add(archiveHeading, 0, row);
             layout.SetColumnSpan(archiveHeading, 3);
             row++;
 
+            AddRow(40);
+            var archiveIntro = Hint("Used only in archive mode - switched at the top of the main window. " +
+                                    "Install mode always lays mods out the way games expect.");
+            layout.Controls.Add(archiveIntro, 1, row);
+            layout.SetColumnSpan(archiveIntro, 2);
+            row++;
+
             AddRow();
-            folderNamingCombo = Choice("Workshop ID", "Mod title");
-            folderNamingCombo.SelectedItem =
-                "Title".Equals(settings.ModFolderNaming, StringComparison.OrdinalIgnoreCase)
-                    ? "Mod title" : "Workshop ID";
+            archiveFolderBox = new TextBox { Dock = DockStyle.Fill, Margin = new Padding(3), Text = settings.ArchiveDirectory };
+            var browseArchive = new Button { Text = "Browse...", Dock = DockStyle.Fill, Margin = new Padding(3) };
+            browseArchive.Click += BrowseArchiveFolder;
+            layout.Controls.Add(FieldLabel("Archive folder:"), 0, row);
+            layout.Controls.Add(archiveFolderBox, 1, row);
+            layout.Controls.Add(browseArchive, 2, row);
+            row++;
+
+            AddRow();
+            folderNamingCombo = Choice("Mod title", "Workshop ID");
+            folderNamingCombo.SelectedItem = archive.FoldersByTitle ? "Mod title" : "Workshop ID";
             layout.Controls.Add(FieldLabel("Folder names:"), 0, row);
             layout.Controls.Add(folderNamingCombo, 1, row);
-            layout.Controls.Add(Hint("Most games need\nthe ID"), 2, row);
+            layout.Controls.Add(Hint("Games need the ID:\nsee mod_<id>.info"), 2, row);
             row++;
 
-            AddRow(32);
-            workshopDatesBox = new CheckBox
-            {
-                Text = "Date files by when the mod was published, not downloaded",
-                Checked = settings.UseWorkshopDates,
-                Dock = DockStyle.Fill,
-                Margin = new Padding(3, 0, 3, 0)
-            };
-            layout.Controls.Add(workshopDatesBox, 1, row);
-            layout.SetColumnSpan(workshopDatesBox, 2);
+            workshopDatesBox = ArchiveOption("Date files by when the mod was published, not downloaded", archive.WorkshopDates);
+            previewImageBox = ArchiveOption("Save the preview image into each mod folder", archive.PreviewImage);
+
+            galleryBox = ArchiveOption("Save the other gallery images of the Workshop page", archive.Gallery);
+            galleryBox.CheckedChanged += ConfirmGallery;
+
+            AddRow(40);
+            galleryWarning = Hint("Reads every mod's Workshop page: many extra requests. Steam may block " +
+                                      "you for a while - use at your own risk. Mods still install when it does.");
+            galleryWarning.Margin = new Padding(24, 0, 3, 3);
+            layout.Controls.Add(galleryWarning, 1, row);
+            layout.SetColumnSpan(galleryWarning, 2);
             row++;
 
-            AddRow(32);
-            previewImageBox = new CheckBox
-            {
-                Text = "Save the preview image into each mod folder",
-                Checked = settings.SavePreviewImage,
-                Dock = DockStyle.Fill,
-                Margin = new Padding(3, 0, 3, 0)
-            };
-            layout.Controls.Add(previewImageBox, 1, row);
-            layout.SetColumnSpan(previewImageBox, 2);
-            row++;
+            workshopLinkBox = ArchiveOption("Add a link to the Workshop page to each mod folder", archive.WorkshopLink);
+            infoInsideBox = ArchiveOption("Keep the mod info file inside the mod folder", archive.InfoInside);
+            collectionFoldersBox = ArchiveOption("Put a collection's mods into a folder named after it", archive.CollectionFolders);
 
-            AddRow(32);
-            workshopLinkBox = new CheckBox
+            CheckBox ArchiveOption(string text, bool value)
             {
-                Text = "Add a link to the Workshop page to each mod folder",
-                Checked = settings.CreateWorkshopLink,
-                Dock = DockStyle.Fill,
-                Margin = new Padding(3, 0, 3, 0)
-            };
-            layout.Controls.Add(workshopLinkBox, 1, row);
-            layout.SetColumnSpan(workshopLinkBox, 2);
-            row++;
-
-            AddRow(32);
-            infoInsideBox = new CheckBox
-            {
-                Text = "Keep the mod info file inside the mod folder",
-                Checked = settings.InfoFileInsideModFolder,
-                Dock = DockStyle.Fill,
-                Margin = new Padding(3, 0, 3, 0)
-            };
-            layout.Controls.Add(infoInsideBox, 1, row);
-            layout.SetColumnSpan(infoInsideBox, 2);
-            row++;
-
-            AddRow(36);
-            collectionFoldersBox = new CheckBox
-            {
-                Text = "Put a collection's mods into a folder named after it",
-                Checked = settings.CollectionFolders,
-                Dock = DockStyle.Fill,
-                Margin = new Padding(3, 0, 3, 0)
-            };
-            layout.Controls.Add(collectionFoldersBox, 1, row);
-            layout.Controls.Add(Hint("Not for game\nfolders"), 2, row);
-            row++;
+                AddRow(32);
+                var box = new CheckBox
+                {
+                    Text = text,
+                    Checked = value,
+                    Dock = DockStyle.Fill,
+                    Margin = new Padding(3, 0, 3, 0)
+                };
+                layout.Controls.Add(box, 1, row);
+                layout.SetColumnSpan(box, 2);
+                row++;
+                return box;
+            }
 
             // --- Appearance and updates ---------------------------------
             AddRow(42);
@@ -301,6 +297,7 @@ namespace WorkshopManager
             CancelButton = cancel;
 
             Theme.Apply(this);
+            galleryWarning.ForeColor = Theme.Warning;   // Apply dims every label
             Theme.StylePrimary(ok);
             Theme.ApplyTitleBar(this);
             RefreshSteamCmdState();
@@ -443,6 +440,39 @@ namespace WorkshopManager
             }
         }
 
+        private void BrowseArchiveFolder(object sender, EventArgs e)
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = "Choose a folder for the archive - not a game's mod folder"
+            };
+
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+            {
+                archiveFolderBox.Text = dialog.SelectedPath;
+            }
+        }
+
+        /// <summary>
+        /// Turning the gallery on is the one archive option with a cost to the
+        /// user, so it asks once more, with the reason.
+        /// </summary>
+        private void ConfirmGallery(object sender, EventArgs e)
+        {
+            if (!galleryBox.Checked) return;
+
+            var answer = MessageBox.Show(
+                "Saving the gallery reads each mod's Workshop page and downloads every image on it - " +
+                "for a large collection that is thousands of requests.\n\n" +
+                "Steam answers too many requests by blocking you for a while. The app then skips " +
+                "the remaining galleries and keeps installing the mods, but the block may also affect " +
+                "your browser on the Steam Community for some time.\n\n" +
+                "Turn it on anyway?",
+                "Gallery images", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+
+            if (answer != DialogResult.Yes) galleryBox.Checked = false;
+        }
+
         private void ExportLibrary(object sender, EventArgs e)
         {
             if (library.Count == 0)
@@ -495,13 +525,17 @@ namespace WorkshopManager
             settings.CleanupAfterInstall = cleanupBox.Checked;
             settings.SkipInstalledMods = skipInstalledBox.Checked;
             settings.CheckForUpdates = checkUpdatesBox.Checked;
-            settings.ModFolderNaming =
-                (folderNamingCombo.SelectedItem as string) == "Mod title" ? "Title" : "Id";
-            settings.UseWorkshopDates = workshopDatesBox.Checked;
-            settings.SavePreviewImage = previewImageBox.Checked;
-            settings.CreateWorkshopLink = workshopLinkBox.Checked;
-            settings.InfoFileInsideModFolder = infoInsideBox.Checked;
-            settings.CollectionFolders = collectionFoldersBox.Checked;
+            settings.ArchiveDirectory = archiveFolderBox.Text.Trim();
+            settings.Archive = new ArchiveOptions
+            {
+                FoldersByTitle = (folderNamingCombo.SelectedItem as string) == "Mod title",
+                WorkshopDates = workshopDatesBox.Checked,
+                PreviewImage = previewImageBox.Checked,
+                Gallery = galleryBox.Checked,
+                WorkshopLink = workshopLinkBox.Checked,
+                InfoInside = infoInsideBox.Checked,
+                CollectionFolders = collectionFoldersBox.Checked
+            };
             settings.Theme = themeCombo.SelectedItem as string ?? "Dark";
             settings.UpdateChannel = channelCombo.SelectedItem as string ?? "Stable";
             settings.Save();

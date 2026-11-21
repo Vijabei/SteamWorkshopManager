@@ -71,13 +71,22 @@ namespace WorkshopManager
         /// </summary>
         public async Task<ModRequirements> FetchAsync(string modId, CancellationToken cancellationToken)
         {
+            return Parse(await FetchPageAsync(modId, cancellationToken));
+        }
+
+        /// <summary>
+        /// The HTML of a mod's Workshop page, fetched the way a browser would.
+        /// Also used for the gallery, which is likewise only on the page.
+        /// Throws on network and HTTP failures; an HttpRequestException carries
+        /// the status code, so a 429 from Steam can be told apart.
+        /// </summary>
+        public static async Task<string> FetchPageAsync(string modId, CancellationToken cancellationToken)
+        {
             var url = $"https://steamcommunity.com/sharedfiles/filedetails/?id={modId}";
 
             using var response = await http.GetAsync(url, cancellationToken);
             response.EnsureSuccessStatusCode();
-            var html = await response.Content.ReadAsStringAsync(cancellationToken);
-
-            return Parse(html);
+            return await response.Content.ReadAsStringAsync(cancellationToken);
         }
 
         /// <summary>Parses an item page. Exposed for testing.</summary>

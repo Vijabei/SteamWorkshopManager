@@ -69,6 +69,26 @@ The install path is now covered end to end (see below). Still unexercised:
     is not (blocked from the build machine).
   - *Info file:* with Workshop dates on, `mod_<id>.info` has no
     `Installation Date` line any more.
+- **Archive mode**, built on Linux only. Covered by a throwaway harness:
+  layouts of both modes, per-game folders only in install mode, migration
+  of 1.3 settings (archive users start in archive mode with their exact
+  options, everyone else stays in install mode, legacy keys are not
+  written back), gallery parsing against three saved Workshop pages and one
+  real gallery image (original name, upload date). Not seen on Windows:
+  - the mode bar: both segments, the blue accent and band in archive mode,
+    labels and window title following the mode, the switch disabled while
+    installing, each mode keeping its own list and folder across switches
+    and restarts
+  - the warnings when archiving into a game folder or installing into the
+    archive folder
+  - an upgrade from 1.3.x with archiving options on: the one-time notice,
+    start in archive mode on the old folder
+  - a whole archive run with the gallery on, including the dates of the
+    gallery images after Workshop dates are applied. Not tried: what Steam
+    does after many hundred page requests - the 429 handling is written
+    against the documented status code, never seen
+  - a game with a `mods/` folder in archive mode: it now gets a folder of
+    its own instead of being merged
 
 - **"Check installed / updates" asking Steam first** (issue #3). Built and
   checked on Linux against the WinForms reference assemblies, and the merge

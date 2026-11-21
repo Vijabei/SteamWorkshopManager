@@ -97,9 +97,9 @@ namespace WorkshopManager
                       "named in brackets - for example [" +
                       (string.IsNullOrWhiteSpace(root.Linked[0].Title) ? "Linked collection" : root.Linked[0].Title) +
                       "]. Mods listed in more than one place are installed once."
-                    : "Their mods are installed alongside the others. Turn on \"Put a collection's " +
-                      "mods into a folder named after it\" in the settings to keep them in " +
-                      "subfolders of their own.",
+                    : "Their mods are installed alongside the others, straight into the folder the " +
+                      "game loads mods from. In archive mode, with collection folders on, each " +
+                      "collection keeps a subfolder of its own.",
                 Font = Theme.SmallFont,
                 AutoSize = true,
                 MaximumSize = new Size(530, 0),

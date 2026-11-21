@@ -23,8 +23,22 @@ namespace WorkshopManager
         private readonly ModLibrary library = new();
         private CancellationTokenSource cancellationTokenSource;
 
-        // Mod list state
-        private readonly List<WorkshopItem> modItems = new();
+        // Mode. Each mode has its own list and folder, so nothing added
+        // for an archive is ever installed into a game, or the other way round.
+        private AppMode mode = AppMode.Install;
+        private readonly List<WorkshopItem> installItems = new();
+        private readonly List<WorkshopItem> archiveItems = new();
+        private Panel modeBar;
+        private Button installModeButton;
+        private Button archiveModeButton;
+        private Label modeDescription;
+        private Label targetDirLabel;
+
+        // Mod list state - the list of the current mode
+        private List<WorkshopItem> modItems => mode == AppMode.Archive ? archiveItems : installItems;
+
+        /// <summary>How mods are laid out on disk in the current mode.</summary>
+        private ModLayout CurrentLayout => ModLayout.For(settings, mode);
         private readonly Dictionary<WorkshopItem, ListViewItem> listViewItems = new();
 
         // Tabs
@@ -87,6 +101,9 @@ namespace WorkshopManager
                     ? ThemeMode.Light
                     : ThemeMode.Dark);
 
+                mode = settings.AppMode;
+                Theme.SetArchiveAccent(mode == AppMode.Archive);
+
                 // Everything is built while layout is suspended, so that
                 // resuming it scales the whole tree from 96 DPI to the
                 // screen in one go. Controls added after that are not
@@ -105,6 +122,7 @@ namespace WorkshopManager
                 {
                     Theme.ApplyTitleBar(this);
                     ApplyInitialSplitterDistance();
+                    if (settings.ArchiveSettingsMigrated) ExplainArchiveMigration();
                     await InitializeWebViewAsync();
                     await CheckForUpdatesAsync();
                 };
@@ -123,7 +141,8 @@ namespace WorkshopManager
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            settings.LastTargetDirectory = targetDirBox.Text;
+            StoreFolderOfMode();
+            settings.AppMode = mode;
             settings.CleanupAfterInstall = cleanupCheckBox.Checked;
             settings.SkipInstalledMods = skipInstalledCheckBox.Checked;
             settings.Save();
@@ -187,10 +206,16 @@ namespace WorkshopManager
                 e.Graphics.DrawLine(separator, 0, 0, bottomBar.Width, 0);
             };
 
+            SetupModeBar();
+
+            // Docking order: the last added control docks first, so the mode
+            // bar takes the top edge before the tabs fill the rest.
             Controls.Add(tabControl);
             Controls.Add(bottomBar);
+            Controls.Add(modeBar);
 
             PositionThemeButton(bottomBar);
+            ShowMode();
         }
 
         /// <summary>
@@ -213,16 +238,205 @@ namespace WorkshopManager
         }
 
         /// <summary>
+        /// The bar at the top that says which mode the window is in and
+        /// switches between them. It sits above the tabs, so it is in view
+        /// whatever tab is open - including the browser, where mods are added.
+        /// </summary>
+        private void SetupModeBar()
+        {
+            modeBar = new Panel { Dock = DockStyle.Top, Height = 54, Padding = new Padding(10, 8, 10, 11) };
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                Margin = new Padding(0)
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            installModeButton = new Button { Text = "Install for games", Dock = DockStyle.Fill, Margin = new Padding(0), TabStop = false };
+            archiveModeButton = new Button { Text = "Archive", Dock = DockStyle.Fill, Margin = new Padding(0), TabStop = false };
+            installModeButton.Click += (s, e) => SwitchMode(AppMode.Install);
+            archiveModeButton.Click += (s, e) => SwitchMode(AppMode.Archive);
+
+            modeDescription = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true,
+                Margin = new Padding(14, 0, 0, 0)
+            };
+
+            var tips = new ToolTip();
+            tips.SetToolTip(installModeButton,
+                "Installs mods into the game's mod folder, laid out the way the game expects.");
+            tips.SetToolTip(archiveModeButton,
+                "Keeps mods for preservation in a separate archive folder, with their images,\r\n" +
+                "details and Workshop dates. Archived folders are named by title - to play one,\r\n" +
+                "copy it into the game and rename it to the id in its mod_<id>.info file.");
+
+            layout.Controls.Add(installModeButton, 0, 0);
+            layout.Controls.Add(archiveModeButton, 1, 0);
+            layout.Controls.Add(modeDescription, 2, 0);
+            modeBar.Controls.Add(layout);
+
+            // A separator in install mode; in archive mode a band in the
+            // archive colour, so the mode shows even at a glance.
+            modeBar.Paint += (s, e) =>
+            {
+                var height = mode == AppMode.Archive ? Px(4) : 1;
+                using var band = new SolidBrush(mode == AppMode.Archive ? Theme.Accent : Theme.Border);
+                e.Graphics.FillRectangle(band, 0, modeBar.Height - height, modeBar.Width, height);
+            };
+        }
+
+        /// <summary>
+        /// Colours the mode switch like a segmented control: the active mode
+        /// filled with the accent, the other one plain. Runs after anything
+        /// that restyles buttons generically.
+        /// </summary>
+        private void StyleModeBar()
+        {
+            if (modeBar == null) return;
+
+            modeBar.BackColor = Theme.Surface;
+
+            foreach (var (button, buttonMode) in new[] { (installModeButton, AppMode.Install), (archiveModeButton, AppMode.Archive) })
+            {
+                bool active = buttonMode == mode;
+                button.FlatStyle = FlatStyle.Flat;
+                button.FlatAppearance.BorderColor = active ? Theme.Accent : Theme.Border;
+                button.FlatAppearance.BorderSize = 1;
+                button.FlatAppearance.MouseOverBackColor = active ? Theme.AccentHover : Theme.SurfaceHover;
+                button.FlatAppearance.MouseDownBackColor = active ? Theme.AccentHover : Theme.SurfaceAlt;
+                button.Font = active ? Theme.BoldFont : Theme.BaseFont;
+                button.BackColor = active ? Theme.Accent : Theme.Background;
+                button.ForeColor = active ? Theme.TextOnAccent : (button.Enabled ? Theme.Text : Theme.Muted);
+                button.Cursor = active ? Cursors.Default : Cursors.Hand;
+            }
+
+            modeDescription.ForeColor = Theme.Text;
+            modeDescription.BackColor = Color.Transparent;
+            modeBar.Invalidate();
+        }
+
+        /// <summary>Puts the current mode into every label that depends on it.</summary>
+        private void ShowMode()
+        {
+            bool archive = mode == AppMode.Archive;
+
+            Text = archive ? "Workshop Mod Manager - Archive" : "Workshop Mod Manager";
+            installTab.Text = archive ? "Mods && Archive" : "Mods && Install";
+            targetDirLabel.Text = archive ? "Archive folder:" : "Install folder:";
+            installButton.Text = archive ? "Archive Mods" : "Install Mods";
+            modeDescription.Text = archive
+                ? "Archive mode - mods are kept for preservation: named by title, dated by the Workshop, " +
+                  "with images and details. Games do not load them from here as they are."
+                : "Install mode - mods go into the game's mod folder, the way the game expects them.";
+
+            StyleModeBar();
+            tabControl.Invalidate();
+        }
+
+        /// <summary>
+        /// Switches between installing and archiving. Each mode keeps its own
+        /// folder and its own list, so switching never carries mods or a
+        /// layout across.
+        /// </summary>
+        private void SwitchMode(AppMode newMode)
+        {
+            if (newMode == mode) return;
+
+            StoreFolderOfMode();
+            mode = newMode;
+            settings.AppMode = mode;
+            Theme.SetArchiveAccent(mode == AppMode.Archive);
+
+            targetDirBox.Text = FolderOfMode(mode);
+            ShowMode();
+            RebuildModListView();
+            ApplyTheme();
+            detailPanel.ShowItem(null);
+            RefreshInstalledStatus();
+            settings.Save();
+
+            UpdateStatus(mode == AppMode.Archive
+                ? $"Archive mode - {modItems.Count} mods in the archive list"
+                : $"Install mode - {modItems.Count} mods in the install list");
+        }
+
+        private string FolderOfMode(AppMode m) =>
+            m == AppMode.Archive ? settings.ArchiveDirectory : settings.LastTargetDirectory;
+
+        /// <summary>Remembers the folder in the box as the current mode's folder.</summary>
+        private void StoreFolderOfMode()
+        {
+            if (targetDirBox == null) return;
+
+            if (mode == AppMode.Archive) settings.ArchiveDirectory = targetDirBox.Text;
+            else settings.LastTargetDirectory = targetDirBox.Text;
+        }
+
+        private void ExplainArchiveMigration()
+        {
+            MessageBox.Show(
+                "Archiving has a mode of its own now.\n\n" +
+                "The archiving options you had turned on - such as folders named by title or " +
+                "Workshop dates - have moved into the new archive mode, exactly as you set them. " +
+                "The app has started in archive mode, on your current folder.\n\n" +
+                "Install mode, switched at the top of the window, installs mods the way games " +
+                "expect them, with its own folder and its own list.",
+                "Archive mode", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        /// <summary>
+        /// True if a folder is where mods are installed for games: the install
+        /// folder, a per-game folder, or anything inside a Steam library.
+        /// </summary>
+        private bool IsGameFolder(string folder)
+        {
+            if (SamePath(folder, settings.LastTargetDirectory)) return true;
+
+            if (settings.GameRules != null &&
+                settings.GameRules.Values.Any(r => SamePath(folder, r?.TargetDirectory))) return true;
+
+            return folder.Replace('/', '\\').IndexOf("\\steamapps\\", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool SamePath(string a, string b)
+        {
+            if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return false;
+
+            try
+            {
+                return string.Equals(
+                    Path.GetFullPath(a).TrimEnd('\\', '/'),
+                    Path.GetFullPath(b).TrimEnd('\\', '/'),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Opens the setup dialog and takes over whatever changed. Everything
         /// in there is stored in the settings file, so the main window only
         /// has to re-read it.
         /// </summary>
         private void OpenSettings(object sender, EventArgs e)
         {
+            // The dialog edits both folders; hand it the one being typed here
+            StoreFolderOfMode();
             using var dialog = new SettingsForm(settings, library);
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
 
-            targetDirBox.Text = settings.LastTargetDirectory;
+            targetDirBox.Text = FolderOfMode(mode);
             cleanupCheckBox.Checked = settings.CleanupAfterInstall;
             skipInstalledCheckBox.Checked = settings.SkipInstalledMods;
 
@@ -274,6 +488,7 @@ namespace WorkshopManager
             // Applied after Theme.Apply, which makes every panel transparent -
             // a transparent bar lets the content above bleed through it.
             bottomBar.BackColor = Theme.Surface;
+            StyleModeBar();
 
             themeButton.Text = Theme.Mode == ThemeMode.Dark ? "Light mode" : "Dark mode";
             UpdateChannelButtonText();
@@ -414,12 +629,13 @@ namespace WorkshopManager
             {
                 Dock = DockStyle.Fill,
                 Margin = new Padding(3),
-                Text = settings.LastTargetDirectory
+                Text = FolderOfMode(mode)
             };
             browseTargetButton = new Button { Text = "Browse", Dock = DockStyle.Fill, Margin = new Padding(3) };
             browseTargetButton.Click += BrowseTargetDir;
 
-            layout.Controls.Add(MakeLabel("Install folder:"), 0, 0);
+            targetDirLabel = MakeLabel("Install folder:");
+            layout.Controls.Add(targetDirLabel, 0, 0);
             layout.Controls.Add(targetDirBox, 1, 0);
             layout.Controls.Add(browseTargetButton, 2, 0);
 
@@ -947,7 +1163,7 @@ namespace WorkshopManager
                     IReadOnlyCollection<string> included = null;
                     if (collection.Linked.Count > 0)
                     {
-                        using var dialog = new LinkedCollectionsDialog(collection, settings.CollectionFolders);
+                        using var dialog = new LinkedCollectionsDialog(collection, CurrentLayout.CollectionFolders);
                         if (dialog.ShowDialog(this) != DialogResult.OK)
                         {
                             UpdateStatus("Ready");
@@ -1007,7 +1223,7 @@ namespace WorkshopManager
             var installed = library.All();
             var known = new HashSet<string>(installed.Select(m => m.ModId));
 
-            var fromDisk = InstallationService.LoadInstalledMods(settings, targetDirBox.Text);
+            var fromDisk = InstallationService.LoadInstalledMods(CurrentLayout, targetDirBox.Text);
             var recovered = fromDisk.Where(m => known.Add(m.ModId)).ToList();
             installed.AddRange(recovered);
 
@@ -1599,12 +1815,13 @@ namespace WorkshopManager
             // One scan of the install folders for the whole list; info files
             // can sit in mod folders and collection folders, not just beside.
             var index = new InstalledIndex();
+            var layout = CurrentLayout;
 
             foreach (var item in modItems)
             {
                 if (item.Status == WorkshopItemStatus.Downloading) continue;
 
-                var installed = InstallationService.FindInstalled(settings, targetDirBox.Text, item, index);
+                var installed = InstallationService.FindInstalled(layout, targetDirBox.Text, item, index);
                 if (installed != null && File.Exists(installed.InfoPath))
                 {
                     var installedTime = InstallationService.GetInstalledTimeUpdated(installed.InfoPath);
@@ -1708,9 +1925,31 @@ namespace WorkshopManager
             if (string.IsNullOrWhiteSpace(targetDirBox.Text))
             {
                 MessageBox.Show(
-                    "Please select an install folder.",
+                    mode == AppMode.Archive ? "Please select an archive folder." : "Please select an install folder.",
                     "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return false;
+            }
+
+            // The two modes write different layouts. Catch the folder of the
+            // one being used in the other before anything is written.
+            if (mode == AppMode.Archive && IsGameFolder(targetDirBox.Text))
+            {
+                if (MessageBox.Show(
+                        "This looks like a folder mods are installed into for a game.\n\n" +
+                        "Archive mode names folders by title and adds images and info files - " +
+                        "a game may not load mods laid out like that.\n\n" +
+                        "Archive into this folder anyway?",
+                        "Archive into a game folder?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
+                    != DialogResult.Yes) return false;
+            }
+            else if (mode == AppMode.Install && SamePath(targetDirBox.Text, settings.ArchiveDirectory))
+            {
+                if (MessageBox.Show(
+                        "This is your archive folder.\n\n" +
+                        "Install mode lays mods out for a game, not for an archive. " +
+                        "Install into this folder anyway?",
+                        "Install into the archive?", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
+                    != DialogResult.Yes) return false;
             }
 
             if (modItems.Count == 0)
@@ -1747,7 +1986,7 @@ namespace WorkshopManager
                 };
 
                 var installationService = new InstallationService(
-                    logger, settings.SteamCmdPath, targetDirBox.Text, settings);
+                    logger, settings.SteamCmdPath, targetDirBox.Text, CurrentLayout);
 
                 var result = await installationService.InstallModsAsync(
                     modItems.ToList(), options, progress, cancellationTokenSource.Token,
@@ -1757,10 +1996,12 @@ namespace WorkshopManager
 
                 var icon = result.Failed == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning;
                 MessageBox.Show(
-                    $"Installation finished.\n\nInstalled: {result.Installed}\n" +
+                    $"{(mode == AppMode.Archive ? "Archiving" : "Installation")} finished.\n\n" +
+                    $"{(mode == AppMode.Archive ? "Archived" : "Installed")}: {result.Installed}\n" +
                     $"Skipped (already installed): {result.Skipped}\nFailed: {result.Failed}" +
                     (result.Failed > 0 ? "\n\nSee the Log tab for details. Failed items may require a Steam login." : ""),
-                    "Installation finished", MessageBoxButtons.OK, icon);
+                    mode == AppMode.Archive ? "Archiving finished" : "Installation finished",
+                    MessageBoxButtons.OK, icon);
             }
             catch (OperationCanceledException)
             {
@@ -1805,7 +2046,7 @@ namespace WorkshopManager
                     continue;
                 }
 
-                library.Record(mod, InstallationService.ResolveTargetDir(settings, targetDirBox.Text, mod.AppId));
+                library.Record(mod, InstallationService.ResolveTargetDir(CurrentLayout, targetDirBox.Text, mod.AppId));
                 archived++;
             }
 
@@ -1855,6 +2096,8 @@ namespace WorkshopManager
             }
 
             targetDirBox.Enabled = enabled;
+            installModeButton.Enabled = enabled;
+            archiveModeButton.Enabled = enabled;
             urlBox.Enabled = enabled;
             browseTargetButton.Enabled = enabled;
             addUrlButton.Enabled = enabled;
@@ -1869,6 +2112,9 @@ namespace WorkshopManager
             cleanupCheckBox.Enabled = enabled;
             skipInstalledCheckBox.Enabled = enabled;
             addFromBrowserButton.Enabled = enabled && currentBrowserAction != BrowserAction.None;
+
+            // Enabling restyles buttons generically; put the segments back
+            StyleModeBar();
         }
 
         private void UpdateStatus(string message)
