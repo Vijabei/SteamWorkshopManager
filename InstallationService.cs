@@ -675,7 +675,8 @@ namespace WorkshopManager
                     preview = await AddArchiveExtrasAsync(installedTo, mod, cancellationToken);
                 }
 
-                await WriteInfoFileAsync(location, mod, cancellationToken);
+                await WriteInfoFileAsync(location, mod,
+                    settings?.UseWorkshopDates == true, cancellationToken);
                 index.Record(gameTarget, location);
 
                 if (installedTo != null && settings?.UseWorkshopDates == true)
@@ -770,9 +771,16 @@ namespace WorkshopManager
         /// it has to be captured at install time. One line per requirement
         /// keeps names containing separators harmless and makes the file
         /// readable by hand.
+        ///
+        /// With Workshop dates the file is dated by the Workshop too, so it
+        /// leaves out the local installation date: the file would otherwise
+        /// contradict its own date, and that date says when this copy was
+        /// made rather than anything about the mod. Nothing reads the line
+        /// back; the library keeps its own record of first installation.
         /// </summary>
         private static async Task WriteInfoFileAsync(
-            InstallLocation location, WorkshopItem mod, CancellationToken cancellationToken)
+            InstallLocation location, WorkshopItem mod, bool workshopDates,
+            CancellationToken cancellationToken)
         {
             string requirementLines =
                 string.Concat(mod.RequiredMods.Select(r => $"Requires Mod: {r.Id}|{r.Name}\n")) +
@@ -800,7 +808,7 @@ namespace WorkshopManager
                 $"Workshop Page: {mod.WorkshopUrl}\n" +
                 $"Requirements Checked: {(mod.RequirementsChecked ? "yes" : "no")}\n" +
                 requirementLines +
-                $"Installation Date: {DateTime.Now}\n" +
+                (workshopDates ? "" : $"Installation Date: {DateTime.Now}\n") +
                 "\n# Description\n" +
                 mod.Description,
                 cancellationToken
