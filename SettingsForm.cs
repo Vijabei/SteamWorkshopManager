@@ -116,6 +116,16 @@ namespace WorkshopManager
             layout.Controls.Add(browseFolder, 2, row);
             row++;
 
+            // Each mode has a folder of its own; without this the install
+            // folder looked like an unused duplicate to someone who only
+            // archives (#6).
+            AddRow(40);
+            var installFolderHint = Hint("Used by install mode (\"Install for games\") only. Archive mode keeps " +
+                                         "its own folder, set on the Archive mode tab.");
+            layout.Controls.Add(installFolderHint, 1, row);
+            layout.SetColumnSpan(installFolderHint, 2);
+            row++;
+
             AddRow();
             batchSize = Spinner(1, 200, settings.BatchSize);
             layout.Controls.Add(FieldLabel("Mods per batch:"), 0, row);
@@ -163,7 +173,7 @@ namespace WorkshopManager
 
             AddRow(40);
             var archiveIntro = Hint("Used only in archive mode - switched at the top of the main window. " +
-                                    "Install mode always lays mods out the way games expect.");
+                                    "Archives go into the archive folder below, never into the install folder.");
             layout.Controls.Add(archiveIntro, 1, row);
             layout.SetColumnSpan(archiveIntro, 2);
             row++;

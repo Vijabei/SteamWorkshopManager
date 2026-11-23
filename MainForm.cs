@@ -77,6 +77,8 @@ namespace WorkshopManager
         private ListView modListView;
         private ModDetailPanel detailPanel;
         private ContextMenuStrip modContextMenu;
+        private FlowLayoutPanel listButtonsPanel;
+        private RowStyle listButtonsRow;
         private Button themeButton;
         private Button channelButton;
         private Button settingsButton;
@@ -545,6 +547,9 @@ namespace WorkshopManager
             if (IsHandleCreated) Theme.ApplyTitleBar(this);
             modListView.Invalidate();
             tabControl.Invalidate();
+
+            // Fonts were just set again, which can change the buttons' size
+            FitListButtons();
         }
 
         private void SetupBrowserTab()
@@ -665,7 +670,7 @@ namespace WorkshopManager
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));   // URL add
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // Options
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // Mod list
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));   // List buttons
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));   // List buttons - grows to fit, see FitListButtons
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));   // Install/Cancel
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // Progress
 
@@ -825,6 +830,13 @@ namespace WorkshopManager
 
             layout.Controls.Add(listButtonsPanel, 0, 4);
             layout.SetColumnSpan(listButtonsPanel, 4);
+
+            // The buttons wrap onto a second line when the window is narrow.
+            // A fixed row cut that line off, and with it the buttons (#5), so
+            // the row takes whatever height the buttons need at this width.
+            listButtonsRow = layout.RowStyles[4];
+            this.listButtonsPanel = listButtonsPanel;
+            listButtonsPanel.SizeChanged += (s, e) => FitListButtons();
 
             // Row 5: Install / Cancel
             installButton = new Button { Text = "Install Mods", Dock = DockStyle.Fill, Margin = new Padding(3) };
@@ -1625,6 +1637,22 @@ namespace WorkshopManager
             {
                 UpdateStatus($"Showing {modListView.Items.Count} of {modItems.Count} mods");
             }
+        }
+
+        /// <summary>
+        /// Sizes the row of list buttons to the lines they wrap into at the
+        /// panel's current width.
+        /// </summary>
+        private void FitListButtons()
+        {
+            if (listButtonsPanel == null || listButtonsRow == null || listButtonsPanel.Width <= 0) return;
+
+            var needed = listButtonsPanel.GetPreferredSize(new Size(listButtonsPanel.Width, 0)).Height;
+            needed = Math.Max(needed, Px(36));
+
+            // Changing the height resizes the panel and comes back here; the
+            // comparison ends that loop.
+            if ((int)listButtonsRow.Height != needed) listButtonsRow.Height = needed;
         }
 
         /// <summary>
