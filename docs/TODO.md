@@ -89,6 +89,14 @@ The install path is now covered end to end (see below). Still unexercised:
     against the documented status code, never seen
   - a game with a `mods/` folder in archive mode: it now gets a folder of
     its own instead of being merged
+- **1.3.1-beta.5 (#5, #6, #7)**, built on Linux only. Harness-covered: the
+  folder each collection's details go to (own, linked, a mod installed
+  from another collection ignored, none in install mode), the info text,
+  and the background image read from a real collection page and
+  downloaded. Not seen on Windows: the list buttons wrapping onto a second
+  line in a narrow window and at large text sizes; a real archive run
+  writing collection_<id>.info, the preview and background images and the
+  Workshop link into the collection and [linked] folders, with dates.
 - **Text size and the tabbed settings dialog**, built on Linux only. Check
   each step (Small to Largest) at 100 % and 150 % display scaling: the
   restart offer, nothing clipped in the main window, the settings tabs, the
