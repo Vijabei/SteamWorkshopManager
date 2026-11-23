@@ -211,7 +211,7 @@ namespace WorkshopManager
 
             workshopLinkBox = ArchiveOption("Add a link to the Workshop page to each mod folder", archive.WorkshopLink);
             infoInsideBox = ArchiveOption("Keep the mod info file inside the mod folder", archive.InfoInside);
-            collectionFoldersBox = ArchiveOption("Put a collection's mods into a folder named after it", archive.CollectionFolders);
+            collectionFoldersBox = ArchiveOption("Put a collection's mods into a folder named after it, with its details", archive.CollectionFolders);
 
             CheckBox ArchiveOption(string text, bool value)
             {

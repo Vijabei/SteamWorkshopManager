@@ -145,21 +145,43 @@ namespace WorkshopManager
         private static async Task<(string Path, DateTime? Uploaded)> SaveImageAsync(
             string url, string directory, int number, CancellationToken cancellationToken)
         {
+            var image = await FetchOriginalAsync(url, cancellationToken);
+            if (image.Extension == null) return (null, null);
+
+            var file = Path.Combine(directory, FileName(number, image.OriginalName, image.Extension));
+            await File.WriteAllBytesAsync(file, image.Bytes, cancellationToken);
+            ImageCache.StampDate(file, image.Uploaded);
+
+            return (file, image.Uploaded);
+        }
+
+        /// <summary>
+        /// Downloads an image from Steam's CDN as the original file: its bytes,
+        /// the format they turn out to be (null if not an image format known
+        /// here), the upload date the CDN reports and the uploader's file name.
+        /// Pass the URL without the image service's query string to get the
+        /// original rather than a resized copy. Throws on network and HTTP
+        /// failures.
+        /// </summary>
+        internal static async Task<(byte[] Bytes, string Extension, DateTime? Uploaded, string OriginalName)> FetchOriginalAsync(
+            string url, CancellationToken cancellationToken)
+        {
             using var response = await http.GetAsync(url, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-            var extension = ImageCache.ExtensionFor(bytes);
-            if (extension == null) return (null, null);
-
-            var file = Path.Combine(directory, FileName(number, OriginalName(response), extension));
-            await File.WriteAllBytesAsync(file, bytes, cancellationToken);
 
             // The CDN serves the upload date, as for the preview image
-            var uploaded = response.Content.Headers.LastModified?.UtcDateTime;
-            ImageCache.StampDate(file, uploaded);
+            return (bytes, ImageCache.ExtensionFor(bytes),
+                response.Content.Headers.LastModified?.UtcDateTime, OriginalName(response));
+        }
 
-            return (file, uploaded);
+        /// <summary>A CDN image URL without the image service's resize options.</summary>
+        internal static string OriginalUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return url;
+            var query = url.IndexOf('?');
+            return query >= 0 ? url.Substring(0, query) : url;
         }
 
         /// <summary>

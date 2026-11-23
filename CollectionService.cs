@@ -78,7 +78,15 @@ namespace WorkshopManager
                     // GetDetailsAsync puts a placeholder title on a failed
                     // lookup; only a real answer carries a timestamp. Without
                     // a title a collection gets no folder of its own.
-                    node.Title = detail.TimeUpdated > 0 ? detail.Title : "";
+                    if (detail.TimeUpdated <= 0) continue;
+
+                    node.Title = detail.Title;
+
+                    // Archived with the collection in archive mode (#7)
+                    node.Description = detail.Description;
+                    node.PreviewUrl = detail.PreviewUrl;
+                    node.TimeCreated = detail.TimeCreated;
+                    node.TimeUpdated = detail.TimeUpdated;
                 }
             }
             catch (OperationCanceledException)
@@ -113,14 +121,18 @@ namespace WorkshopManager
             CancellationToken cancellationToken,
             IProgress<string> status = null)
         {
-            var (ids, linkedTitleOf) = PlanItems(root, includedLinked);
+            var (ids, linkedOf) = PlanItems(root, includedLinked);
             if (ids.Count == 0) return new List<WorkshopItem>();
 
             var items = await GetDetailsAsync(ids, cancellationToken, status);
             foreach (var item in items)
             {
+                item.Collection = root;
                 item.CollectionTitle = root.Title;
-                item.LinkedCollectionTitle = linkedTitleOf.TryGetValue(item.ModId, out var title) ? title : "";
+
+                linkedOf.TryGetValue(item.ModId, out var linked);
+                item.LinkedCollection = linked;
+                item.LinkedCollectionTitle = linked?.Title ?? "";
             }
 
             return items;
@@ -128,14 +140,14 @@ namespace WorkshopManager
 
         /// <summary>
         /// Which mods a collection contributes, in order, and for each one
-        /// that came in through a linked collection, that collection's title.
+        /// that came in through a linked collection, that collection.
         /// Null for <paramref name="includedLinked"/> means all of them.
         /// </summary>
-        internal static (List<string> Ids, Dictionary<string, string> LinkedTitleOf) PlanItems(
+        internal static (List<string> Ids, Dictionary<string, CollectionNode> LinkedOf) PlanItems(
             CollectionNode root, IReadOnlyCollection<string> includedLinked)
         {
             var ids = new List<string>();
-            var linkedTitleOf = new Dictionary<string, string>();
+            var linkedOf = new Dictionary<string, CollectionNode>();
             var seen = new HashSet<string>();
 
             foreach (var id in root.ItemIds)
@@ -151,11 +163,11 @@ namespace WorkshopManager
                 {
                     if (!seen.Add(id)) continue;
                     ids.Add(id);
-                    linkedTitleOf[id] = linked.Title;
+                    linkedOf[id] = linked;
                 }
             }
 
-            return (ids, linkedTitleOf);
+            return (ids, linkedOf);
         }
 
         private async Task<CollectionNode> LoadNodeAsync(
@@ -356,6 +368,18 @@ namespace WorkshopManager
 
         /// <summary>Title, empty if Steam did not tell.</summary>
         public string Title { get; set; } = "";
+
+        /// <summary>Workshop description, in Steam's BBCode.</summary>
+        public string Description { get; set; } = "";
+
+        /// <summary>URL of the preview image, empty if none.</summary>
+        public string PreviewUrl { get; set; } = "";
+
+        /// <summary>Unix timestamps from the Workshop, 0 if unknown.</summary>
+        public long TimeCreated { get; set; }
+        public long TimeUpdated { get; set; }
+
+        public string WorkshopUrl => $"https://steamcommunity.com/sharedfiles/filedetails/?id={Id}";
 
         /// <summary>Mods listed directly in this collection.</summary>
         public List<string> ItemIds { get; } = new();

@@ -60,6 +60,15 @@ namespace WorkshopManager
         /// </summary>
         public string LinkedCollectionTitle { get; set; } = "";
 
+        /// <summary>
+        /// The collection this mod was added from, and the linked collection
+        /// it came in through, if any. Known only while the list is open, so
+        /// archive mode can store the collections' own details beside their
+        /// mods (#7); not written anywhere.
+        /// </summary>
+        public CollectionNode Collection { get; set; }
+        public CollectionNode LinkedCollection { get; set; }
+
         /// <summary>URL of the preview image, empty if unknown.</summary>
         public string PreviewUrl { get; set; } = "";
 

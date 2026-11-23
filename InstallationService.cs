@@ -444,6 +444,14 @@ namespace WorkshopManager
 
             try
             {
+                // First the collections' own details (#7). They do not depend
+                // on any download, and a run that skips every mod as already
+                // installed still brings an older archive up to date.
+                if (layout.IsArchive && layout.CollectionFolders)
+                {
+                    await ArchiveCollectionsAsync(mods, cancellationToken);
+                }
+
                 // Pre-filter: mods without a game id can't be downloaded;
                 // already installed mods are skipped on request.
                 foreach (var mod in mods)
@@ -892,6 +900,21 @@ namespace WorkshopManager
             }
 
             return preview;
+        }
+
+        private async Task ArchiveCollectionsAsync(IReadOnlyList<WorkshopItem> mods, CancellationToken cancellationToken)
+        {
+            var folders = CollectionArchive.PlanFolders(mods, mod => PlanLocation(layout, targetDir, mod, index));
+            if (folders.Count == 0) return;
+
+            var linkedInRun = folders.Where(f => f.Value.Parent != null).Select(f => f.Key).ToList();
+            var archive = new CollectionArchive(logger, layout);
+
+            foreach (var (node, (directory, parent)) in folders)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await archive.SaveAsync(node, parent, directory, linkedInRun, cancellationToken);
+            }
         }
 
         /// <summary>Name of the shortcut to the Workshop page in a mod folder.</summary>
