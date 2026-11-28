@@ -89,6 +89,14 @@ The install path is now covered end to end (see below). Still unexercised:
     against the documented status code, never seen
   - a game with a `mods/` folder in archive mode: it now gets a folder of
     its own instead of being merged
+- **1.3.1-beta.6 (#5, #10, #11, #12)**, UI only, built on Linux only, not
+  seen on Windows: start a run, switch to another program, and check that
+  the finished message comes up with the main window and the taskbar button
+  flashes; the Log tab past 32,767 characters; the status text beside the
+  fixed-size Install/Archive and Cancel buttons at several window widths
+  and text sizes; minimize and restore with the list buttons in one and in
+  two lines; the scope line on every settings tab and the Mod library tab
+  layout.
 - **1.3.1-beta.5 (#5, #6, #7)**, built on Linux only. Harness-covered: the
   folder each collection's details go to (own, linked, a mod installed
   from another collection ignored, none in install mode), the info text,
