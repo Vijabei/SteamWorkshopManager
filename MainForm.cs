@@ -538,6 +538,9 @@ namespace WorkshopManager
             bottomBar.BackColor = Theme.Surface;
             StyleModeBar();
 
+            // The only sign of progress during a run - not dimmed like a hint
+            statusLabel.ForeColor = Theme.Text;
+
             themeButton.Text = Theme.Mode == ThemeMode.Dark ? "Light mode" : "Dark mode";
             UpdateChannelButtonText();
 
@@ -671,8 +674,8 @@ namespace WorkshopManager
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // Options
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // Mod list
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));   // List buttons - grows to fit, see FitListButtons
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));   // Install/Cancel
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // Progress
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));   // Status, Install/Cancel
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));   // Progress
 
             // Row 0: Target directory - SteamCMD and the rest of the setup
             // live in the settings dialog, so this tab stays about the work
@@ -838,23 +841,43 @@ namespace WorkshopManager
             this.listButtonsPanel = listButtonsPanel;
             listButtonsPanel.SizeChanged += (s, e) => FitListButtons();
 
-            // Row 5: Install / Cancel
-            installButton = new Button { Text = "Install Mods", Dock = DockStyle.Fill, Margin = new Padding(3) };
-            installButton.Click += InstallMods;
-            cancelButton = new Button { Text = "Cancel", Dock = DockStyle.Fill, Margin = new Padding(3), Enabled = false };
-            cancelButton.Click += CancelInstallation;
+            // Row 5: status text, then Install / Cancel on the right (#11).
+            // The status used to sit in the 120-pixel label column and was
+            // cut off after a few words, while the main button stretched
+            // across the window. Now the text takes the width and the
+            // buttons keep a size of their own.
+            var actionRow = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                Margin = new Padding(0)
+            };
+            actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200));
+            actionRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            actionRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            layout.Controls.Add(installButton, 1, 5);
-            layout.Controls.Add(cancelButton, 2, 5);
-
-            // Row 6: Progress + status
             statusLabel = new Label
             {
                 Text = "Ready",
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft,
-                AutoEllipsis = true
+                AutoEllipsis = true,
+                Margin = new Padding(3, 0, 12, 0)
             };
+            installButton = new Button { Text = "Install Mods", Dock = DockStyle.Fill, Margin = new Padding(3) };
+            installButton.Click += InstallMods;
+            cancelButton = new Button { Text = "Cancel", Dock = DockStyle.Fill, Margin = new Padding(3), Enabled = false };
+            cancelButton.Click += CancelInstallation;
+
+            actionRow.Controls.Add(statusLabel, 0, 0);
+            actionRow.Controls.Add(installButton, 1, 0);
+            actionRow.Controls.Add(cancelButton, 2, 0);
+            layout.Controls.Add(actionRow, 0, 5);
+            layout.SetColumnSpan(actionRow, 4);
+
+            // Row 6: progress across the whole width
             progressBar = new ThemedProgressBar
             {
                 Dock = DockStyle.Fill,
@@ -862,10 +885,8 @@ namespace WorkshopManager
                 Style = ProgressBarStyle.Continuous
             };
 
-            layout.Controls.Add(statusLabel, 0, 6);
-            layout.SetColumnSpan(statusLabel, 1);
-            layout.Controls.Add(progressBar, 1, 6);
-            layout.SetColumnSpan(progressBar, 3);
+            layout.Controls.Add(progressBar, 0, 6);
+            layout.SetColumnSpan(progressBar, 4);
 
             installTab.Controls.Add(layout);
         }
