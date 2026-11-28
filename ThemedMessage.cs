@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WorkshopManager
@@ -23,7 +24,13 @@ namespace WorkshopManager
             MessageBoxButtons buttons = MessageBoxButtons.OK,
             MessageBoxIcon icon = MessageBoxIcon.None)
         {
-            var owner = Form.ActiveForm;
+            // ActiveForm is null whenever another program is in front - the
+            // usual case when a long run finishes. Without an owner the dialog
+            // opened behind that program, with no taskbar button, and as a
+            // modal dialog still locked the main window: the app looked
+            // frozen until someone found the dialog (#10).
+            var inBackground = Form.ActiveForm == null;
+            var owner = Form.ActiveForm ?? TopmostOpenForm();
 
             if (owner != null && owner.InvokeRequired)
             {
@@ -32,14 +39,77 @@ namespace WorkshopManager
 
             using var dialog = new ThemedMessage(text, caption, buttons, icon);
 
-            if (owner != null && owner.Visible && !owner.IsDisposed)
+            if (owner != null)
             {
+                // Owned, the dialog comes to the front together with its
+                // owner, e.g. when the app is picked from the taskbar.
                 dialog.StartPosition = FormStartPosition.CenterParent;
+                if (inBackground) dialog.Shown += (s, e) => FlashTaskbar(owner);
                 return dialog.ShowDialog(owner);
             }
 
+            // Nothing to belong to - say, a message before the main window
+            // exists. Then it needs a taskbar button of its own to be found.
             dialog.StartPosition = FormStartPosition.CenterScreen;
+            dialog.ShowInTaskbar = true;
+            if (inBackground) dialog.Shown += (s, e) => FlashTaskbar(dialog);
             return dialog.ShowDialog();
+        }
+
+        /// <summary>
+        /// The window a message belongs to when none is active: the most
+        /// recently opened visible one, which is the settings dialog while it
+        /// is open and the main window otherwise.
+        /// </summary>
+        private static Form TopmostOpenForm()
+        {
+            Form found = null;
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form is ThemedMessage || !form.Visible || form.IsDisposed) continue;
+                found = form;
+            }
+            return found;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FlashInfo
+        {
+            public uint Size;
+            public IntPtr Window;
+            public uint Flags;
+            public uint Count;
+            public uint Timeout;
+        }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool FlashWindowEx(ref FlashInfo info);
+
+        private const uint FlashAll = 0x3;              // caption and taskbar button
+        private const uint FlashUntilForeground = 0xC;  // until the window comes to the front
+
+        /// <summary>
+        /// Makes the app's taskbar button blink until it is brought to the
+        /// front, the way Windows signals that a program in the background
+        /// wants attention - here, that a run has finished.
+        /// </summary>
+        private static void FlashTaskbar(Form form)
+        {
+            try
+            {
+                var info = new FlashInfo
+                {
+                    Size = (uint)Marshal.SizeOf<FlashInfo>(),
+                    Window = form.Handle,
+                    Flags = FlashAll | FlashUntilForeground
+                };
+                FlashWindowEx(ref info);
+            }
+            catch (Exception)
+            {
+                // Cosmetic - the dialog can still be reached without it
+            }
         }
 
         private ThemedMessage(string text, string caption, MessageBoxButtons buttons, MessageBoxIcon icon)

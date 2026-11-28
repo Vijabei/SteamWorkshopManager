@@ -878,6 +878,10 @@ namespace WorkshopManager
                 ScrollBars = ScrollBars.Vertical,
                 Dock = DockStyle.Fill,
                 ReadOnly = true,
+                // The default limit of 32,767 characters made the tab stop
+                // showing new lines partway through a run (#10). 0 lifts it
+                // to what Windows allows for a multi-line box.
+                MaxLength = 0,
                 BackColor = Color.White,
                 Font = new Font(FontFamily.GenericMonospace, 9 * Theme.TextScale)
             };
