@@ -841,6 +841,10 @@ namespace WorkshopManager
             this.listButtonsPanel = listButtonsPanel;
             listButtonsPanel.SizeChanged += (s, e) => FitListButtons();
 
+            // Restoring from the taskbar resizes the window, not always the
+            // panel, so the row is checked again then too.
+            Resize += (s, e) => FitListButtons();
+
             // Row 5: status text, then Install / Cancel on the right (#11).
             // The status used to sit in the 120-pixel label column and was
             // cut off after a few words, while the main button stretched
@@ -1664,15 +1668,55 @@ namespace WorkshopManager
             }
         }
 
+        private bool listButtonsFitPending;
+
         /// <summary>
         /// Sizes the row of list buttons to the lines they wrap into at the
         /// panel's current width.
+        ///
+        /// Applied after the layout pass that asked for it, never within it:
+        /// a row height changed mid-pass was not always laid out again, and
+        /// after minimizing and restoring the row stayed far too tall (#5).
         /// </summary>
         private void FitListButtons()
         {
-            if (listButtonsPanel == null || listButtonsRow == null || listButtonsPanel.Width <= 0) return;
+            if (listButtonsPanel == null || listButtonsRow == null) return;
 
-            var needed = listButtonsPanel.GetPreferredSize(new Size(listButtonsPanel.Width, 0)).Height;
+            if (!IsHandleCreated)
+            {
+                ApplyListButtonsHeight();
+                return;
+            }
+
+            if (listButtonsFitPending) return;
+            listButtonsFitPending = true;
+            BeginInvoke(new Action(() =>
+            {
+                listButtonsFitPending = false;
+                ApplyListButtonsHeight();
+            }));
+        }
+
+        private void ApplyListButtonsHeight()
+        {
+            // Minimized, the window is laid out at a tiny width at which every
+            // button would need a line of its own. Nothing to fit then; the
+            // restore brings a resize of its own.
+            if (WindowState == FormWindowState.Minimized) return;
+
+            var width = listButtonsPanel.Width;
+            if (width <= 0) return;
+
+            // Narrower than its widest control, the panel is between two
+            // layouts rather than really that narrow
+            var widest = 0;
+            foreach (Control control in listButtonsPanel.Controls)
+            {
+                widest = Math.Max(widest, control.Width + control.Margin.Horizontal);
+            }
+            if (width < widest) return;
+
+            var needed = listButtonsPanel.GetPreferredSize(new Size(width, 0)).Height;
             needed = Math.Max(needed, Px(36));
 
             // Changing the height resizes the panel and comes back here; the
