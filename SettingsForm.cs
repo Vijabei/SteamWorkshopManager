@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -38,6 +39,7 @@ namespace WorkshopManager
         private readonly CheckBox galleryBox;
         private readonly TextBox archiveFolderBox;
         private readonly Label galleryWarning;
+        private readonly List<Label> scopeLabels = new();
         private readonly Label steamCmdState;
 
         public SettingsForm(Settings settings, ModLibrary library)
@@ -66,8 +68,21 @@ namespace WorkshopManager
             TableLayoutPanel layout = null;
             int row = 0;
 
-            void StartPage(string title)
+            // Each page opens with the mode it applies to (#12), and ends in an
+            // empty row of percent height: a table hands its spare space to
+            // its last row, which made the Mod library's export button fill
+            // most of the tab.
+            void FinishPage()
             {
+                if (layout == null) return;
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                layout.RowCount = row + 1;
+            }
+
+            void StartPage(string title, string scope)
+            {
+                FinishPage();
+
                 layout = new TableLayoutPanel
                 {
                     Dock = DockStyle.Fill,
@@ -83,12 +98,21 @@ namespace WorkshopManager
                 var page = new TabPage(title);
                 page.Controls.Add(layout);
                 tabs.TabPages.Add(page);
+
+                AddRow(40);
+                var scopeLabel = Hint(scope);
+                scopeLabel.Font = Theme.BoldFont;
+                scopeLabels.Add(scopeLabel);
+                layout.Controls.Add(scopeLabel, 0, row);
+                layout.SetColumnSpan(scopeLabel, 3);
+                row++;
             }
 
             void AddRow(int height = 36) => layout.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
 
             // --- Downloading --------------------------------------------
-            StartPage("Downloading");
+            StartPage("Downloading",
+                "Applies to both modes - except the install folder, which only install mode uses.");
 
             AddRow();
             steamCmdBox = new TextBox { Dock = DockStyle.Fill, Margin = new Padding(3), Text = settings.SteamCmdPath };
@@ -169,14 +193,9 @@ namespace WorkshopManager
             // games expect.
             var archive = settings.Archive ?? new ArchiveOptions();
 
-            StartPage("Archive mode");
-
-            AddRow(40);
-            var archiveIntro = Hint("Used only in archive mode - switched at the top of the main window. " +
-                                    "Archives go into the archive folder below, never into the install folder.");
-            layout.Controls.Add(archiveIntro, 1, row);
-            layout.SetColumnSpan(archiveIntro, 2);
-            row++;
+            StartPage("Archive mode",
+                "Applies to archive mode only - switched at the top of the main window. " +
+                "Archives go into the archive folder below, never into the install folder.");
 
             AddRow();
             archiveFolderBox = new TextBox { Dock = DockStyle.Fill, Margin = new Padding(3), Text = settings.ArchiveDirectory };
@@ -230,7 +249,7 @@ namespace WorkshopManager
             }
 
             // --- Appearance and updates ---------------------------------
-            StartPage("Appearance");
+            StartPage("Appearance", "Applies to both modes.");
 
             AddRow();
             themeCombo = Choice("Dark", "Light");
@@ -269,14 +288,15 @@ namespace WorkshopManager
             row++;
 
             // --- Library -------------------------------------------------
-            StartPage("Mod library");
+            StartPage("Mod library",
+                "Shared by both modes: every mod installed or archived with this app is recorded here.");
 
             AddRow(46);
             var libraryInfo = new Label
             {
                 Dock = DockStyle.Fill,
                 Font = Theme.SmallFont,
-                Text = $"{library.Count} mods archived\n{library.FilePath}",
+                Text = $"{library.Count} mods recorded\n{library.FilePath}",
                 Margin = new Padding(3, 0, 3, 0)
             };
             var openLibrary = new Button { Text = "Open folder", Dock = DockStyle.Fill, Margin = new Padding(3) };
@@ -292,6 +312,8 @@ namespace WorkshopManager
             layout.Controls.Add(exportHint, 1, row);
             layout.Controls.Add(exportButton, 2, row);
             row++;
+
+            FinishPage();
 
             // --- Buttons --------------------------------------------------
             var buttons = new FlowLayoutPanel
@@ -315,6 +337,7 @@ namespace WorkshopManager
 
             Theme.Apply(this);
             galleryWarning.ForeColor = Theme.Warning;   // Apply dims every label
+            foreach (var label in scopeLabels) label.ForeColor = Theme.Accent;
             Theme.StylePrimary(ok);
             Theme.ApplyTitleBar(this);
             RefreshSteamCmdState();
